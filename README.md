@@ -200,8 +200,16 @@ Formati di ingresso: `.e57`, `.las`, `.laz`, `.ply`, `.pcd`, `.xyz`/`.txt`.
 |------|-----------|
 | `<nome>_segmentata.ply` | nuvola a piena risoluzione, colorata per classe, con scalar field `classe` (leggibile in CloudCompare) |
 | `<nome>_segmentata.las` | (con `--las`) LAS 1.4 con RGB e campo `classification` |
+| `<nome>_segmentata_strutturale.las` | (con `--las`) solo la parte architettonica: struttura, pavimento, soffitto, parete, pilastro, trave |
+| `<nome>_segmentata_mep.las` | (con `--las`) solo gli impianti MEP (condotte, tubi, luci, sprinkler, passerelle, apparecchiature…) |
+| `<nome>_segmentata_scarto.las` | (con `--las`) solo arredo e rumore/waste: ciò che non va modellato |
 | `<nome>_report.json` | conteggi per classe, piani strutturali, istanze con dimensioni, assi e diametri stimati |
 | `<nome>_istanze.csv` | le stesse istanze in formato tabellare |
+
+Oltre al LAS completo, l'export a piena risoluzione (`--las`) produce
+automaticamente **tre nuvole separate** per il flusso scan-to-BIM —
+architettura, impianti MEP e scarto — così puoi caricare nel modello solo il
+gruppo che ti serve.
 
 ## Come funziona
 
@@ -240,8 +248,10 @@ proprio caso e passarlo con `-c`.
 
 ## Fine-tuning su scansioni proprie
 
-Il modulo DL non richiede dataset pubblici: si parte dalla pipeline
-geometrica e si migliora con i propri dati.
+Il modulo DL **non richiede** un dataset pubblico: si parte dalla pipeline
+geometrica e si migliora con i propri dati. Se vuoi, puoi comunque dare alla
+rete una base di partenza importando un dataset pubblico già etichettato
+(vedi sotto).
 
 1. Segmentare le scansioni con `mepseg` (solo geometria) e confermare o
    correggere le istanze nella GUI (fase "Conferma e allinea").
@@ -255,6 +265,25 @@ geometrica e si migliora con i propri dati.
 
 4. Usare il modello: `mepseg rilievo.e57 --pesi pesi/rete_mep_v1.pth`
    (o la spunta "usa la rete" nella GUI).
+
+### Avvio a freddo da un dataset pubblico (opzionale)
+
+In alternativa — o come base di partenza prima del fine-tuning sui propri
+dati — si può importare un dataset pubblico già etichettato, es. **PSNET5**
+(impianti industriali), e usarlo per un primo addestramento. La corrispondenza
+tra le classi del dataset e le 17 di mepseg è definita in file di mappatura
+**modificabili** (`mepseg/dl/mappature/*.yaml`), così puoi adattarla al tuo
+caso.
+
+Dalla GUI: pannello **Addestra → "Importa un dataset pubblico"** (scegli la
+cartella scaricata, il dataset e il livello di voxel). Da riga di comando:
+
+```bash
+python -m mepseg.dl.importa_pubblico <cartella_dataset> --dataset psnet5 -o dataset_mep
+```
+
+I dati pubblici restano sul tuo disco e non vengono ridistribuiti dal tool: si
+scaricano dalla fonte ufficiale rispettandone la licenza.
 
 ## Limiti noti e consigli
 
