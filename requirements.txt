@@ -1,0 +1,20 @@
+# mepseg - dipendenze BASE (installate da:  pip install -e .)
+#
+# Verifica l'ambiente in qualsiasi momento con:   mepseg --controlla
+# (elenca cosa e' presente, cosa manca e come installarlo)
+#
+# Gruppi OPZIONALI, installali solo se ti servono:
+#   pip install -e .[e57]     lettura file E57 (pye57)
+#   pip install -e .[dl]      deep learning / rete opzionale (PyTorch)
+#   pip install -e .[gui]     interfaccia web locale (fastapi, uvicorn, matplotlib)
+#   pip install -e .[tutto]   tutti i gruppi opzionali
+#
+# Per il solo suggerimento visivo nella GUI serve anche Ollama
+# (https://ollama.com) - strumento esterno, NON un pacchetto pip.
+
+numpy>=1.24
+scipy>=1.10
+scikit-learn>=1.3
+open3d>=0.17
+laspy[lazrs]>=2.5
+pyyaml>=6.0

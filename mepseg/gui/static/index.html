@@ -1,0 +1,1224 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<title>mepseg — Segmentazione MEP</title>
+<style>
+  :root { --sfondo:#14161a; --bordo:#2e3340; --testo:#e8eaf0;
+          --accento:#3da9fc; --ok:#39d98a; --errore:#ff5470; --muto:#8a90a0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--sfondo); color:var(--testo);
+         font:14px/1.5 "Segoe UI", system-ui, sans-serif; }
+  header { padding:18px 40px; border-bottom:1px solid var(--bordo);
+           display:flex; align-items:baseline; gap:14px; }
+  header h1 { margin:0; font-size:22px; }
+  header span { color:var(--muto); font-size:13px; }
+  main { padding:0 40px 60px; }
+  section { padding:28px 0; border-bottom:1px solid var(--bordo); }
+  section:last-child { border-bottom:0; }
+  h2 { margin:0 0 18px; font-size:17px; color:var(--accento); }
+  label { display:block; margin:0 0 4px; color:var(--muto); font-size:12.5px; }
+  input, select { width:100%; padding:8px 10px; background:#12141a;
+                  color:var(--testo); border:1px solid var(--bordo); border-radius:6px; }
+  input[type=checkbox] { width:auto; }
+  .riga { display:flex; gap:16px; align-items:flex-end; flex-wrap:wrap; }
+  .riga > div { flex:1; min-width:150px; }
+  .riga > .larga { flex:2.5; min-width:320px; }
+  .riga > .stretta { flex:0 0 auto; min-width:0; }
+  button { padding:9px 20px; background:var(--accento); color:#08111c; border:0;
+           border-radius:7px; font-weight:600; cursor:pointer; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.secondario { background:#2e3340; color:var(--testo); }
+  .griglia-classi { display:flex; flex-wrap:wrap; gap:8px 22px; padding:10px 0; }
+  .griglia-classi label { display:flex; align-items:center; gap:7px; margin:0;
+                          color:var(--testo); cursor:pointer; font-size:13.5px; }
+  #pianta-contenitore { display:none; }
+  #pianta { border-radius:8px; cursor:crosshair; display:block; margin:0 auto; }
+  #laterale { border-radius:8px; cursor:row-resize; display:block; width:100%; }
+  .bloccata #pianta, .bloccata #laterale { cursor:not-allowed; }
+  #fase { font-weight:600; color:var(--ok); }
+  #registro { background:#0d0f13; border-radius:8px; padding:12px; height:200px;
+              overflow-y:auto; font:12px/1.5 Consolas, monospace; color:#9aa3b5;
+              white-space:pre-wrap; margin-top:6px; }
+  #vista3d { width:100%; height:72vh; background:#0b0d10; border-radius:8px; }
+  #legenda { display:flex; flex-wrap:wrap; gap:8px 22px; margin:0 0 12px; }
+  #legenda label { display:flex; align-items:center; gap:7px; margin:0;
+                   cursor:pointer; color:var(--testo); font-size:13.5px; }
+  .pallino { width:12px; height:12px; border-radius:50%; display:inline-block; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { padding:6px 10px; text-align:left; border-bottom:1px solid var(--bordo); }
+  th { color:var(--muto); position:sticky; top:0; background:var(--sfondo); }
+  tbody tr { cursor:pointer; }
+  tbody tr:hover { background:#20242d; }
+  #tabella-contenitore { max-height:48vh; overflow-y:auto; margin-top:14px; }
+  .errore { color:var(--errore); font-weight:600; }
+  .suggerimento { color:var(--muto); font-size:12px; margin-top:8px; }
+  #istanza-descrizione { padding:8px 10px; background:#12141a;
+    border:1px solid var(--bordo); border-radius:6px; min-height:38px; }
+  #contatore-conferme b { color:var(--ok); }
+  button.mini { padding:4px 12px; font-size:12px; margin-right:6px; }
+  button.mini.elimina { background:#2e3340; color:var(--errore); }
+  tr.decisa td { background:#15251b; }
+  tr.eliminata td { background:#2a1a1e; }
+</style>
+</head>
+<body>
+<header>
+  <h1>mepseg</h1>
+  <span>segmentazione di nuvole di punti per impianti MEP — tutto in locale</span>
+</header>
+<main>
+  <section id="sezione-prepara">
+    <h2>1 · Prepara</h2>
+    <div id="lock-prepara" style="display:none;margin:-6px 0 12px">
+      <span class="suggerimento" style="color:var(--ok)">Preparazione bloccata:
+        l'elaborazione è avviata su questi parametri.</span>
+      <button id="btn-sblocca" class="no-blocco secondario mini"
+        onclick="bloccaPreparazione(false)"
+        title="riabilita gli input per preparare una nuova nuvola">Sblocca</button>
+    </div>
+    <div class="riga">
+      <div class="larga">
+        <label>Nuvola di punti</label>
+        <input id="percorso" placeholder="C:\...\scansione.e57">
+      </div>
+      <div class="stretta"><button class="secondario" onclick="sfoglia()">Sfoglia…</button></div>
+      <div>
+        <label>Dettaglio (voxel)</label>
+        <select id="voxel">
+          <option value="0.03">Veloce — 3 cm</option>
+          <option value="0.02" selected>Bilanciato — 2 cm</option>
+          <option value="0.015">Fine — 1.5 cm</option>
+          <option value="0.01">Massimo — 1 cm</option>
+        </select>
+      </div>
+      <div>
+        <label>Ambiente</label>
+        <select id="ambiente">
+          <option value="terziario">Terziario / uffici</option>
+          <option value="data_center">Data center / TLC</option>
+          <option value="centrale_termica">Centrale termica</option>
+          <option value="industriale">Industriale</option>
+          <option value="personalizzato">Personalizzato</option>
+        </select>
+      </div>
+      <div>
+        <label>Cartella output (vuota = accanto al file)</label>
+        <input id="output" placeholder="output_...">
+      </div>
+    </div>
+    <label style="margin-top:16px">Classi da riconoscere</label>
+    <div id="classi-scelta" class="griglia-classi"></div>
+    <div class="riga" style="margin-top:6px">
+      <div class="stretta"><button onclick="caricaAnteprima()" id="btn-anteprima">
+        Carica anteprima</button></div>
+      <div><div class="suggerimento" style="margin:0">Per nuvole E57 molto grandi
+        la prima anteprima esegue la lettura in streaming (minuti); le
+        successive usano la cache.</div></div>
+    </div>
+  </section>
+
+  <section id="sezione-pianta">
+    <h2>Pianta — disegna il rettangolo della zona di lavoro</h2>
+    <div id="pianta-contenitore">
+      <label>Pianta (vista dall'alto, X-Y) — trascina per il rettangolo della
+        zona; la griglia è in metri reali dello scanner</label>
+      <canvas id="pianta"></canvas>
+      <label style="margin-top:14px">Vista laterale (elevazione, quota Z) —
+        trascina in verticale per scegliere l'altezza del taglio</label>
+      <canvas id="laterale"></canvas>
+      <div class="riga" style="margin-top:12px">
+        <div><label>Z min</label><input id="zmin" type="number" step="0.1"></div>
+        <div><label>Z max</label><input id="zmax" type="number" step="0.1"></div>
+        <div class="larga"><label>Bbox</label><input id="bbox-testo" readonly></div>
+        <div class="stretta"><button class="secondario" onclick="azzeraBbox()">
+          Azzera</button></div>
+      </div>
+      <div id="selezione-info" class="suggerimento" style="margin-top:8px"></div>
+    </div>
+    <div id="pianta-vuota" class="suggerimento">Carica un'anteprima per vedere
+      la pianta. Senza rettangolo viene elaborata l'intera nuvola.</div>
+  </section>
+
+  <section>
+    <h2>2 · Elabora</h2>
+    <div class="riga">
+      <div style="max-width:180px">
+        <label>Margine di contesto (m)</label>
+        <input id="margine" type="number" value="1.0" step="0.5" min="0">
+      </div>
+      <div class="stretta">
+        <label style="margin-bottom:10px">Export</label>
+        <label style="color:var(--testo)"><input type="checkbox" id="las">
+          LAS piena risoluzione</label>
+      </div>
+      <div class="stretta"><button onclick="avviaSegmentazione()" id="btn-avvia"
+        disabled>Avvia segmentazione</button></div>
+      <div>Fase: <span id="fase">—</span>
+        <span id="messaggio-errore" class="errore"></span></div>
+    </div>
+    <div id="registro"></div>
+  </section>
+
+  <section>
+    <h2>3 · Verifica</h2>
+    <div id="legenda"></div>
+    <div id="vista3d"></div>
+    <div id="riepilogo" class="suggerimento"></div>
+    <div id="tabella-contenitore">
+      <table id="tabella">
+        <thead><tr><th>id</th><th>classe</th><th>punti</th><th>dim (m)</th>
+               <th>azioni</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>4 · Conferma e allinea</h2>
+    <div id="conferma-vuota" class="suggerimento">Completa una segmentazione,
+      poi seleziona un'istanza cliccandola nel viewer 3D o nella tabella:
+      poche conferme bastano, il run di allineamento le propaga a tutta la
+      nuvola.</div>
+    <div id="conferma-contenuto" style="display:none">
+      <div class="riga">
+        <div class="larga">
+          <label>Istanza selezionata</label>
+          <div id="istanza-descrizione">nessuna — clicca un'istanza nel
+            viewer o nella tabella</div>
+        </div>
+        <div>
+          <label>Classe corretta (per "Correggi")</label>
+          <select id="conferma-classe"></select>
+        </div>
+        <div>
+          <label>Nome (facoltativo)</label>
+          <input id="conferma-nome" placeholder="es. plafoniera_sala2">
+        </div>
+      </div>
+      <div class="riga" style="margin-top:12px">
+        <div class="stretta"><button id="btn-vlm" class="secondario" disabled
+          onclick="chiediVlm()"
+          title="chiede un parere al modello visivo LOCALE (Ollama): un suggerimento in piu', la decisione resta tua"
+          >Suggerimento visivo</button></div>
+        <div><span id="esito-vlm" class="suggerimento"></span></div>
+      </div>
+      <div id="viste-vlm" style="display:none;margin-top:8px"></div>
+      <div class="riga" style="margin-top:12px">
+        <div class="stretta"><button id="btn-conferma" disabled
+          onclick="inviaConferma('conferma')">Conferma classe</button></div>
+        <div class="stretta"><button id="btn-correggi" disabled
+          onclick="inviaConferma('correggi')">Correggi classe</button></div>
+        <div class="stretta"><button id="btn-elimina" class="secondario" disabled
+          onclick="inviaConferma('elimina')"
+          title="rumore di scansione: diventa Waste e resta fuori dalle iterazioni successive"
+          >Elimina</button></div>
+        <div class="stretta"><button id="btn-annulla" class="secondario" disabled
+          onclick="inviaConferma('annulla')">Annulla decisione</button></div>
+        <div><span id="contatore-conferme" class="suggerimento"></span></div>
+      </div>
+      <div class="riga" style="margin-top:20px">
+        <div class="stretta"><button id="btn-allinea"
+          onclick="avviaAllineamento()">Run di allineamento</button></div>
+        <div><span id="esito-diff" class="suggerimento"></span></div>
+        <div class="stretta" id="filtro-diff" style="display:none">
+          <label style="color:var(--testo)"><input type="checkbox"
+            id="solo-cambiate"> evidenzia solo le cambiate</label>
+        </div>
+      </div>
+      <div id="tabella-diff-contenitore"
+           style="max-height:36vh;overflow-y:auto;margin-top:10px;display:none">
+        <table id="tabella-diff">
+          <thead><tr><th>id</th><th>prima</th><th>dopo</th><th>punti</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>5 · Addestra — fine-tuning della rete (progressivo)</h2>
+    <div id="addestra-vuota" class="suggerimento">Completa una segmentazione
+      e qualche conferma, poi esporta le etichette nel dataset cumulativo:
+      ogni nuvola confermata rende la rete piu' brava, e i run successivi
+      possono fonderla (riclassifica solo il MEP generico — mai strutture
+      ne' conferme).</div>
+    <div id="addestra-contenuto" style="display:none">
+      <div class="riga">
+        <div class="larga">
+          <label>Cartella dataset (cumulativo, resta sul tuo disco)</label>
+          <input id="cartella-dataset" placeholder="vuota = dataset_mep accanto alla nuvola">
+        </div>
+        <div class="stretta"><button class="secondario"
+          onclick="aggiornaDataset()">Aggiorna stato</button></div>
+      </div>
+      <div id="dataset-stato" class="suggerimento" style="margin-top:10px">—</div>
+      <div class="riga" style="margin-top:14px">
+        <div class="stretta"><button id="btn-esporta"
+          onclick="esportaDataset()">Esporta le etichette di questo run</button></div>
+        <div style="max-width:140px">
+          <label>Epoche</label>
+          <input id="epoche" type="number" value="30" min="1" max="500">
+        </div>
+        <div class="stretta"><button id="btn-addestra"
+          onclick="avviaAddestramento()">Addestra la rete</button></div>
+        <div><span id="stato-addestra" class="suggerimento"></span></div>
+      </div>
+      <div class="riga" style="margin-top:12px">
+        <div class="stretta">
+          <label style="color:var(--testo)"><input type="checkbox" id="usa-rete">
+            usa la rete nei prossimi run (fusione con l'ultimo checkpoint)</label>
+        </div>
+        <div><div class="suggerimento" style="margin:0">Su CPU la fusione su
+          nuvole grandi richiede decine di minuti: attivala quando i pesi
+          valgono l'attesa (o con una GPU).</div></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script src="/static/three.min.js"></script>
+<script src="/static/OrbitControls.js"></script>
+<script>
+"use strict";
+
+// L'interfaccia funziona SOLO tramite il server locale: aprire index.html
+// direttamente dal disco (file://) lascerebbe la pagina senza API.
+if (location.protocol === "file:") {
+  document.body.innerHTML =
+    `<div style="max-width:680px;margin:80px auto;font:15px/1.8 'Segoe UI',sans-serif;
+       color:#e8eaf0;background:#1d2026;border:1px solid #2e3340;border-radius:12px;
+       padding:36px">
+     <h1 style="color:#3da9fc;font-size:22px;margin-top:0">mepseg — avvio non corretto</h1>
+     <p>Hai aperto <code>index.html</code> direttamente dal disco: l'interfaccia ha
+     bisogno del suo <b>server locale</b> (pianta, classi, elaborazione).</p>
+     <p><b>Come avviare correttamente:</b></p>
+     <ol>
+       <li>doppio click su <code>avvia_gui.bat</code> nella cartella del progetto,
+           <i>oppure</i></li>
+       <li>da terminale (con l'ambiente attivo): <code>mepseg-gui</code></li>
+     </ol>
+     <p>Il browser si aprir&agrave; da solo su
+     <code>http://127.0.0.1:8765</code>. Nessun dato lascia il computer.</p></div>`;
+  throw new Error("pagina aperta da file:// — serve il server locale");
+}
+
+let estensione = null, bbox = null, trascinamento = null;
+let immaginePianta = null;
+// vista laterale (elevazione) per scegliere la quota Z
+let estensioneLaterale = null, immagineLaterale = null, asseLaterale = "x";
+let trascinamentoZ = null;
+let scena, camera, controlli, renderer, gruppiClasse = {}, boxEvidenza = null;
+let infoClassi = {}, presetAmbienti = {};
+let istanzaSelezionata = null, boxDiff = null, istanzeCambiate = [];
+// suggerimento visivo (VLM locale via Ollama): stato del server e ultimo
+// suggerimento ricevuto (viaggia con la conferma per tracciabilita')
+let statoVlm = null, suggerimentoVlm = null;
+
+const $ = id => document.getElementById(id);
+
+// --- spunte delle classi da riconoscere (sezione Prepara) -------------------
+
+async function inizializzaClassi() {
+  try {
+    const [rClassi, rAmbienti] = await Promise.all([
+      fetch("/api/classi"), fetch("/api/ambienti"),
+    ]);
+    infoClassi = await rClassi.json();
+    presetAmbienti = await rAmbienti.json();
+  } catch (e) {
+    $("classi-scelta").innerHTML =
+      '<span class="errore">Impossibile contattare il server: riavvia mepseg-gui.</span>';
+    return;
+  }
+  const griglia = $("classi-scelta");
+  Object.entries(infoClassi)
+    .filter(([, info]) => info.escludibile)
+    .forEach(([codice, info]) => {
+      const [r, g, b] = info.colore;
+      const voce = document.createElement("label");
+      voce.innerHTML =
+        `<input type="checkbox" checked data-chiave="${info.chiave}">` +
+        `<span class="pallino" style="background:rgb(${r},${g},${b})"></span>` +
+        `${info.nome}`;
+      griglia.appendChild(voce);
+    });
+  $("ambiente").addEventListener("change", applicaPresetAmbiente);
+  // selettore "classe corretta" del pannello Conferma (tutte le classi)
+  const selettore = $("conferma-classe");
+  Object.values(infoClassi).forEach(info => {
+    const voce = document.createElement("option");
+    voce.value = info.chiave; voce.textContent = info.nome;
+    selettore.appendChild(voce);
+  });
+}
+
+function applicaPresetAmbiente() {
+  const escluse = presetAmbienti[$("ambiente").value] || [];
+  document.querySelectorAll("#classi-scelta input").forEach(spunta => {
+    spunta.checked = !escluse.includes(spunta.dataset.chiave);
+  });
+}
+
+function classiEscluse() {
+  return Array.from(document.querySelectorAll("#classi-scelta input"))
+    .filter(spunta => !spunta.checked)
+    .map(spunta => spunta.dataset.chiave);
+}
+
+inizializzaClassi();
+
+// --- Prepara ----------------------------------------------------------------
+
+function mostraErrore(messaggio) {
+  $("messaggio-errore").textContent = messaggio;
+}
+
+async function sfoglia() {
+  try {
+    const r = await fetch("/api/sfoglia", {method: "POST"});
+    const d = await r.json();
+    if (d.errore) { mostraErrore("Selettore file: " + d.errore); return; }
+    if (d.percorso) $("percorso").value = d.percorso;
+  } catch (e) {
+    mostraErrore("Il server non risponde: riavvia mepseg-gui. (" + e.message + ")");
+  }
+}
+
+function percorsoPulito() {
+  // Windows "Copia come percorso" incolla il percorso tra virgolette
+  return $("percorso").value.trim().replace(/^["']+|["']+$/g, "");
+}
+
+function parametriBase() {
+  return {
+    percorso: percorsoPulito(),
+    voxel: parseFloat($("voxel").value),
+    cartella_output: $("output").value.trim().replace(/^["']+|["']+$/g, ""),
+  };
+}
+
+async function caricaAnteprima() {
+  if (!percorsoPulito()) { mostraErrore("Indica il file della nuvola"); return; }
+  mostraErrore("");
+  $("btn-anteprima").disabled = true;
+  try {
+    const avvio = await fetch("/api/anteprima", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(parametriBase())});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    await attendiJob();
+    const r = await fetch("/api/pianta");
+    if (r.ok) {
+      const d = await r.json();
+      estensione = d.estensione;
+      immaginePianta = new Image();
+      immaginePianta.onload = disegnaPianta;
+      immaginePianta.src = "data:image/png;base64," + d.png;
+      $("pianta-contenitore").style.display = "block";
+      $("pianta-vuota").style.display = "none";
+      $("zmin").value = estensione.zmin.toFixed(2);
+      $("zmax").value = estensione.zmax.toFixed(2);
+      $("btn-avvia").disabled = false;
+      // vista laterale (elevazione) per la quota Z
+      const rl = await fetch("/api/vista_laterale");
+      if (rl.ok) {
+        const dl = await rl.json();
+        estensioneLaterale = dl.estensione;
+        asseLaterale = dl.asse_h;
+        immagineLaterale = new Image();
+        immagineLaterale.onload = disegnaLaterale;
+        immagineLaterale.src = "data:image/png;base64," + dl.png;
+      }
+      aggiornaInfoSelezione();
+    }
+  } catch (e) {
+    mostraErrore(e.message);
+  }
+  $("btn-anteprima").disabled = false;
+}
+
+// --- Pianta e bbox ------------------------------------------------------------
+
+function disegnaPianta() {
+  const canvas = $("pianta");
+  const rapporto = immaginePianta.height / immaginePianta.width;
+  // piena larghezza, ma senza superare il 75% dell'altezza della finestra
+  const larghezzaMax = canvas.parentElement.clientWidth;
+  const larghezza = Math.min(larghezzaMax, (window.innerHeight * 0.75) / rapporto);
+  canvas.width = larghezza; canvas.height = Math.round(larghezza * rapporto);
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(immaginePianta, 0, 0, canvas.width, canvas.height);
+  // griglia trasparente in metri reali (X-Y dello scanner), sotto il bbox
+  disegnaGriglia(ctx, canvas, estensione.xmin, estensione.xmax,
+                 estensione.ymin, estensione.ymax);
+  if (bbox) {
+    const [x0, y0] = mondoACanvas(bbox[0], bbox[4]);
+    const [x1, y1] = mondoACanvas(bbox[3], bbox[1]);
+    ctx.strokeStyle = "#ff3355"; ctx.lineWidth = 2.5;
+    ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  }
+}
+
+// --- griglia e vista laterale -------------------------------------------------
+
+function passoBello(intervallo, divisioni) {
+  // passo "tondo" (1/2/5 x 10^n) per ~`divisioni` linee sull'intervallo
+  const grezzo = intervallo / Math.max(divisioni, 1);
+  const pot = Math.pow(10, Math.floor(Math.log10(grezzo || 1)));
+  for (const m of [1, 2, 5, 10]) if (m * pot >= grezzo) return m * pot;
+  return 10 * pot;
+}
+function cifreDecimali(passo) { return passo < 0.1 ? 2 : (passo < 1 ? 1 : 0); }
+
+// griglia con etichette in coordinate mondo; mappa lineare mondo->canvas
+// (l'immagine riempie il canvas, quindi il rapporto e' diretto)
+function disegnaGriglia(ctx, canvas, wxmin, wxmax, wymin, wymax) {
+  const sx = passoBello(wxmax - wxmin, 10), sy = passoBello(wymax - wymin, 6);
+  ctx.save();
+  ctx.lineWidth = 1;
+  ctx.font = "11px Consolas, monospace";
+  ctx.strokeStyle = "rgba(255,255,255,0.13)";
+  ctx.fillStyle = "rgba(220,228,240,0.85)";
+  for (let x = Math.ceil(wxmin / sx) * sx; x <= wxmax + 1e-6; x += sx) {
+    const px = (x - wxmin) / (wxmax - wxmin) * canvas.width;
+    ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, canvas.height); ctx.stroke();
+    ctx.fillText(x.toFixed(cifreDecimali(sx)), px + 3, canvas.height - 4);
+  }
+  for (let y = Math.ceil(wymin / sy) * sy; y <= wymax + 1e-6; y += sy) {
+    const py = (wymax - y) / (wymax - wymin) * canvas.height;
+    ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(canvas.width, py); ctx.stroke();
+    ctx.fillText(y.toFixed(cifreDecimali(sy)), 3, py - 3);
+  }
+  ctx.restore();
+}
+
+function disegnaLaterale() {
+  if (!immagineLaterale || !estensioneLaterale) return;
+  const canvas = $("laterale");
+  const rapporto = immagineLaterale.height / immagineLaterale.width;
+  canvas.width = canvas.parentElement.clientWidth;
+  canvas.height = Math.max(130, Math.round(canvas.width * rapporto));
+  const ctx = canvas.getContext("2d");
+  ctx.drawImage(immagineLaterale, 0, 0, canvas.width, canvas.height);
+  const el = estensioneLaterale;
+  disegnaGriglia(ctx, canvas, el.hmin, el.hmax, el.zmin, el.zmax);
+  // banda della quota Z selezionata
+  const zmn = parseFloat($("zmin").value), zmx = parseFloat($("zmax").value);
+  if (isFinite(zmn) && isFinite(zmx) && el.zmax > el.zmin) {
+    const ytop = (el.zmax - zmx) / (el.zmax - el.zmin) * canvas.height;
+    const ybot = (el.zmax - zmn) / (el.zmax - el.zmin) * canvas.height;
+    ctx.fillStyle = "rgba(61,169,252,0.18)";
+    ctx.fillRect(0, ytop, canvas.width, ybot - ytop);
+    ctx.strokeStyle = "#3da9fc"; ctx.lineWidth = 1.5;
+    ctx.strokeRect(0, ytop, canvas.width, ybot - ytop);
+  }
+}
+
+function canvasAZ(py) {
+  const el = estensioneLaterale, c = $("laterale");
+  return el.zmax - py / c.height * (el.zmax - el.zmin);
+}
+function aggiornaZ(pa, pb) {
+  const za = canvasAZ(pa), zb = canvasAZ(pb);
+  $("zmin").value = Math.min(za, zb).toFixed(2);
+  $("zmax").value = Math.max(za, zb).toFixed(2);
+  sincronizzaZ();
+}
+// propaga i valori Z (da trascinamento o dai campi) al bbox e ai disegni
+function sincronizzaZ() {
+  if (bbox) {
+    bbox[2] = parseFloat($("zmin").value);
+    bbox[5] = parseFloat($("zmax").value);
+    $("bbox-testo").value = bbox.map(v => v.toFixed(1)).join(", ");
+  }
+  disegnaLaterale();
+  if (immaginePianta) disegnaPianta();
+  aggiornaInfoSelezione();
+}
+
+function aggiornaInfoSelezione() {
+  if (!estensione) return;
+  const e = estensione;
+  let txt = `Nuvola — X ${e.xmin.toFixed(1)}…${e.xmax.toFixed(1)} · ` +
+    `Y ${e.ymin.toFixed(1)}…${e.ymax.toFixed(1)} · ` +
+    `Z ${e.zmin.toFixed(1)}…${e.zmax.toFixed(1)} m`;
+  if (bbox) {
+    const dx = bbox[3] - bbox[0], dy = bbox[4] - bbox[1], dz = bbox[5] - bbox[2];
+    txt += `   |   Selezione ${dx.toFixed(1)} × ${dy.toFixed(1)} m in pianta, ` +
+      `Z ${bbox[2].toFixed(1)}…${bbox[5].toFixed(1)} m (altezza ${dz.toFixed(1)} m)`;
+  }
+  $("selezione-info").textContent = txt;
+}
+
+$("laterale").addEventListener("mousedown", e => {
+  if (preparazioneBloccata) return;
+  const r = e.target.getBoundingClientRect();
+  trascinamentoZ = e.clientY - r.top;
+});
+$("laterale").addEventListener("mousemove", e => {
+  if (trascinamentoZ === null) return;
+  const r = e.target.getBoundingClientRect();
+  aggiornaZ(trascinamentoZ, e.clientY - r.top);
+});
+window.addEventListener("mouseup", () => trascinamentoZ = null);
+["zmin", "zmax"].forEach(id => $(id).addEventListener("input", sincronizzaZ));
+window.addEventListener("resize", () => {
+  if (immaginePianta) disegnaPianta();
+  if (immagineLaterale) disegnaLaterale();
+});
+
+function canvasAMondo(px, py) {
+  const c = $("pianta");
+  return [
+    estensione.xmin + px / c.width * (estensione.xmax - estensione.xmin),
+    estensione.ymax - py / c.height * (estensione.ymax - estensione.ymin),
+  ];
+}
+function mondoACanvas(x, y) {
+  const c = $("pianta");
+  return [
+    (x - estensione.xmin) / (estensione.xmax - estensione.xmin) * c.width,
+    (estensione.ymax - y) / (estensione.ymax - estensione.ymin) * c.height,
+  ];
+}
+
+$("pianta").addEventListener("mousedown", e => {
+  if (preparazioneBloccata) return;
+  const r = e.target.getBoundingClientRect();
+  trascinamento = [e.clientX - r.left, e.clientY - r.top];
+});
+$("pianta").addEventListener("mousemove", e => {
+  if (!trascinamento) return;
+  const r = e.target.getBoundingClientRect();
+  aggiornaBbox(trascinamento, [e.clientX - r.left, e.clientY - r.top]);
+});
+$("pianta").addEventListener("mouseup", () => trascinamento = null);
+
+function aggiornaBbox(inizio, fine) {
+  const [xa, ya] = canvasAMondo(inizio[0], inizio[1]);
+  const [xb, yb] = canvasAMondo(fine[0], fine[1]);
+  bbox = [Math.min(xa, xb), Math.min(ya, yb), parseFloat($("zmin").value),
+          Math.max(xa, xb), Math.max(ya, yb), parseFloat($("zmax").value)];
+  $("bbox-testo").value = bbox.map(v => v.toFixed(1)).join(", ");
+  disegnaPianta();
+  aggiornaInfoSelezione();
+}
+function azzeraBbox() {
+  if (preparazioneBloccata) return;
+  bbox = null; $("bbox-testo").value = "";
+  disegnaPianta();
+  if (immagineLaterale) disegnaLaterale();
+  aggiornaInfoSelezione();
+}
+
+// --- Elabora ------------------------------------------------------------------
+
+async function avviaSegmentazione() {
+  $("btn-avvia").disabled = true;
+  // la preparazione si blocca appena parte l'elaborazione: cambiare gli
+  // input mentre il run gira (o dopo, durante Conferma/Allinea che usano lo
+  // stesso run) renderebbe ambiguo cosa e' stato davvero processato
+  bloccaPreparazione(true);
+  mostraErrore("");
+  const corpo = Object.assign(parametriBase(), {
+    ambiente: $("ambiente").value,
+    classi_escluse: classiEscluse(),
+    bbox: bbox ? [bbox[0], bbox[1], parseFloat($("zmin").value),
+                  bbox[3], bbox[4], parseFloat($("zmax").value)] : null,
+    margine: parseFloat($("margine").value),
+    las: $("las").checked,
+    usa_rete: $("usa-rete").checked,
+    cartella_dataset: $("cartella-dataset").value.trim(),
+  });
+  try {
+    const avvio = await fetch("/api/segmenta", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(corpo)});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    const ok = await attendiJob();
+    if (ok) await caricaRisultato();
+    else bloccaPreparazione(false);  // job fallito: riapri per correggere
+  } catch (e) {
+    mostraErrore(e.message);
+    bloccaPreparazione(false);       // errore: riapri per correggere
+  }
+  $("btn-avvia").disabled = false;
+}
+
+// blocco della fase 1 (Prepara + Pianta) durante e dopo l'elaborazione:
+// i parametri restano quelli su cui gira il run. Si riapre da solo se il
+// run fallisce, o a mano con "Sblocca" per elaborare una nuova nuvola.
+let preparazioneBloccata = false;
+function bloccaPreparazione(bloccata) {
+  preparazioneBloccata = bloccata;
+  ["sezione-prepara", "sezione-pianta"].forEach(idSez => {
+    const sez = $(idSez);
+    if (!sez) return;
+    sez.querySelectorAll("input, select, button").forEach(el => {
+      if (!el.classList.contains("no-blocco")) el.disabled = bloccata;
+    });
+    sez.classList.toggle("bloccata", bloccata);
+  });
+  $("lock-prepara").style.display = bloccata ? "block" : "none";
+}
+
+async function attendiJob() {
+  let tentativiFalliti = 0;
+  while (true) {
+    try {
+      const r = await fetch("/api/stato");
+      const s = await r.json();
+      tentativiFalliti = 0;
+      $("fase").textContent = s.fase || "—";
+      $("registro").textContent = s.log.join("\n");
+      $("registro").scrollTop = $("registro").scrollHeight;
+      if (s.errore) { mostraErrore(s.errore); return false; }
+      if (s.completato && !s.attivo) return true;
+    } catch (e) {
+      if (++tentativiFalliti >= 5) {
+        mostraErrore("Connessione al server persa: riavvia mepseg-gui.");
+        return false;
+      }
+    }
+    await new Promise(rz => setTimeout(rz, 800));
+  }
+}
+
+// --- Verifica -------------------------------------------------------------------
+
+async function caricaRisultato() {
+  const r = await fetch("/api/risultato");
+  if (!r.ok) return;
+  const d = await r.json();
+  mostraRiepilogo(d.report);
+  mostraTabella(d.report.istanze);
+  await caricaNuvola3d();
+  // Fase 4: il pannello Conferma si attiva col primo risultato; una nuova
+  // run rimescola gli id, quindi la selezione va azzerata
+  $("conferma-vuota").style.display = "none";
+  $("conferma-contenuto").style.display = "block";
+  azzeraSelezione();
+  aggiornaConferme();
+  aggiornaStatoVlm();
+  // Fase 5: con un run in mano si puo' esportare e addestrare
+  $("addestra-vuota").style.display = "none";
+  $("addestra-contenuto").style.display = "block";
+  aggiornaDataset();
+  $("vista3d").scrollIntoView({behavior: "smooth"});
+}
+
+function mostraRiepilogo(report) {
+  const conteggi = Object.entries(report.punti_per_classe)
+    .filter(([, n]) => n > 0)
+    .map(([nome, n]) => `${nome}: ${n.toLocaleString("it")}`)
+    .join(" · ");
+  $("riepilogo").textContent =
+    `${report.punti_totali.toLocaleString("it")} punti · ` +
+    `${report.n_istanze_mep} istanze · ${conteggi}`;
+}
+
+function mostraTabella(istanze) {
+  const corpo = $("tabella").querySelector("tbody");
+  corpo.innerHTML = "";
+  istanze.slice().sort((a, b) => b.n_punti - a.n_punti).slice(0, 800)
+    .forEach(ist => {
+      const riga = document.createElement("tr");
+      riga.innerHTML =
+        `<td>${ist.id}</td><td>${ist.classe}</td>` +
+        `<td>${ist.n_punti.toLocaleString("it")}</td>` +
+        `<td>${ist.dim_1} × ${ist.dim_2} × ${ist.dim_3}</td>` +
+        `<td><button class="mini" data-az="conferma">Conferma</button>` +
+        `<button class="mini" data-az="correggi">Correggi</button>` +
+        `<button class="mini elimina" data-az="elimina">Elimina</button></td>`;
+      riga.onclick = () => selezionaIstanza(ist);
+      riga.querySelectorAll("button").forEach(bottone => {
+        bottone.onclick = e => {
+          e.stopPropagation();
+          azioneRapida(ist, bottone.dataset.az, riga);
+        };
+      });
+      corpo.appendChild(riga);
+    });
+}
+
+// azioni direttamente dalla tabella: Conferma ed Elimina partono subito
+// (la riga si colora), Correggi porta al pannello per scegliere la classe
+async function azioneRapida(ist, azione, riga) {
+  aggiornaPannello(ist);
+  if (azione === "correggi") {
+    evidenzia(ist);
+    $("conferma-contenuto").scrollIntoView({behavior: "smooth", block: "center"});
+    $("conferma-classe").focus();
+    return;
+  }
+  const inviata = await inviaConferma(azione);
+  if (inviata) riga.className = azione === "elimina" ? "eliminata" : "decisa";
+}
+
+function preparaScena() {
+  const contenitore = $("vista3d");
+  renderer = new THREE.WebGLRenderer({antialias: false});
+  renderer.setSize(contenitore.clientWidth, contenitore.clientHeight);
+  contenitore.innerHTML = "";
+  contenitore.appendChild(renderer.domElement);
+  // se il contesto WebGL viene perso (memoria GPU, sospensione), consenti
+  // il ripristino: preventDefault lo rende recuperabile e il ciclo di
+  // render ri-carica le geometrie da solo al ripristino
+  renderer.domElement.addEventListener("webglcontextlost",
+    e => e.preventDefault(), false);
+  scena = new THREE.Scene();
+  scena.background = new THREE.Color(0x0b0d10);
+  camera = new THREE.PerspectiveCamera(
+    55, contenitore.clientWidth / contenitore.clientHeight, 0.1, 2000);
+  camera.up.set(0, 0, 1);
+  controlli = new THREE.OrbitControls(camera, renderer.domElement);
+  // click (non trascinamento) su un punto = selezione istanza per la Fase 4
+  let puntatoreGiu = null;
+  renderer.domElement.addEventListener("pointerdown",
+    e => puntatoreGiu = [e.clientX, e.clientY]);
+  renderer.domElement.addEventListener("pointerup", e => {
+    if (!puntatoreGiu) return;
+    const dx = e.clientX - puntatoreGiu[0], dy = e.clientY - puntatoreGiu[1];
+    puntatoreGiu = null;
+    if (dx * dx + dy * dy <= 25) selezionaDaClick(e);
+  });
+  window.addEventListener("resize", () => {
+    renderer.setSize(contenitore.clientWidth, contenitore.clientHeight);
+    camera.aspect = contenitore.clientWidth / contenitore.clientHeight;
+    camera.updateProjectionMatrix();
+  });
+  (function ciclo() { requestAnimationFrame(ciclo);
+    controlli.update(); renderer.render(scena, camera); })();
+}
+
+function _liberaMesh(m) {
+  // rimuovere dalla scena NON libera la memoria GPU: three.js tiene i
+  // buffer finche' non si chiama dispose(). Senza questo ogni run e ogni
+  // allineamento accumulava ~1,5M punti in GPU, finche' il contesto WebGL
+  // andava perso e il viewer diventava bianco (bug allineamento).
+  scena.remove(m);
+  if (m.geometry) m.geometry.dispose();
+  if (m.material) {
+    (Array.isArray(m.material) ? m.material : [m.material]).forEach(x => x.dispose());
+  }
+}
+
+async function caricaNuvola3d() {
+  if (!renderer) preparaScena();
+  Object.values(gruppiClasse).forEach(_liberaMesh);
+  gruppiClasse = {};
+  if (boxEvidenza) { _liberaMesh(boxEvidenza); boxEvidenza = null; }
+  if (boxDiff) { boxDiff.children.forEach(_liberaMesh); scena.remove(boxDiff); boxDiff = null; }
+
+  const rPunti = await fetch("/api/punti3d");
+  const buffer = await rPunti.arrayBuffer();
+  const n = new Uint32Array(buffer, 0, 1)[0];
+  const xyz = new Float32Array(buffer, 4, n * 3);
+  const rgb = new Uint8Array(buffer, 4 + n * 12, n * 3);
+  const classi = new Uint8Array(buffer, 4 + n * 15, n);
+
+  let cx = 0, cy = 0, cz = 0;
+  for (let i = 0; i < n; i++) { cx += xyz[3*i]; cy += xyz[3*i+1]; cz += xyz[3*i+2]; }
+  cx /= n; cy /= n; cz /= n;
+
+  const perClasse = {};
+  for (let i = 0; i < n; i++) (perClasse[classi[i]] ??= []).push(i);
+
+  for (const [codice, indici] of Object.entries(perClasse)) {
+    const pos = new Float32Array(indici.length * 3);
+    const col = new Float32Array(indici.length * 3);
+    indici.forEach((i, k) => {
+      pos[3*k] = xyz[3*i] - cx; pos[3*k+1] = xyz[3*i+1] - cy; pos[3*k+2] = xyz[3*i+2] - cz;
+      col[3*k] = rgb[3*i]/255; col[3*k+1] = rgb[3*i+1]/255; col[3*k+2] = rgb[3*i+2]/255;
+    });
+    const geometria = new THREE.BufferGeometry();
+    geometria.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    geometria.setAttribute("color", new THREE.BufferAttribute(col, 3));
+    const punti = new THREE.Points(geometria, new THREE.PointsMaterial(
+      {size: 0.035, vertexColors: true}));
+    scena.add(punti);
+    gruppiClasse[codice] = punti;
+  }
+  window._centroNuvola = [cx, cy, cz];
+  // camera iniziale proporzionata all'ingombro della nuvola
+  let raggio = 0;
+  for (let i = 0; i < n; i += 97) {
+    const dx = xyz[3*i] - cx, dy = xyz[3*i+1] - cy, dz = xyz[3*i+2] - cz;
+    raggio = Math.max(raggio, dx*dx + dy*dy + dz*dz);
+  }
+  raggio = Math.sqrt(raggio);
+  camera.position.set(raggio * 0.7, -raggio * 1.1, raggio * 0.8);
+  controlli.target.set(0, 0, 0);
+  costruisciLegenda(Object.keys(perClasse));
+}
+
+function costruisciLegenda(codici) {
+  const legenda = $("legenda");
+  legenda.innerHTML = "";
+  codici.sort((a, b) => a - b).forEach(codice => {
+    const info = infoClassi[codice];
+    if (!info) return;
+    const [r, g, b] = info.colore;
+    const voce = document.createElement("label");
+    voce.innerHTML =
+      `<input type="checkbox" checked>` +
+      `<span class="pallino" style="background:rgb(${r},${g},${b})"></span>` +
+      `${info.nome}`;
+    voce.querySelector("input").onchange = e =>
+      gruppiClasse[codice].visible = e.target.checked;
+    legenda.appendChild(voce);
+  });
+}
+
+function evidenzia(ist) {
+  if (!scena) return;
+  const [cx, cy, cz] = window._centroNuvola;
+  const x = ist.centro_x - cx, y = ist.centro_y - cy, z = ist.centro_z - cz;
+  if (boxEvidenza) _liberaMesh(boxEvidenza);
+  const geometria = new THREE.BoxGeometry(ist.dim_1, ist.dim_2, ist.dim_3);
+  boxEvidenza = new THREE.Mesh(geometria, new THREE.MeshBasicMaterial(
+    {color: 0xff3355, wireframe: true}));
+  boxEvidenza.position.set(x, y, z);
+  scena.add(boxEvidenza);
+  controlli.target.set(x, y, z);
+  const distanza = Math.max(ist.dim_1, ist.dim_2, ist.dim_3) * 3 + 2;
+  camera.position.set(x + distanza, y - distanza, z + distanza * 0.7);
+  $("vista3d").scrollIntoView({behavior: "smooth", block: "center"});
+}
+
+// --- 4 · Conferma e allinea ---------------------------------------------------
+
+function azzeraSelezione() {
+  istanzaSelezionata = null;
+  istanzeCambiate = [];
+  $("istanza-descrizione").textContent =
+    "nessuna — clicca un'istanza nel viewer o nella tabella";
+  ["btn-conferma", "btn-correggi", "btn-elimina", "btn-annulla"]
+    .forEach(id => $(id).disabled = true);
+  $("esito-diff").textContent = "";
+  $("filtro-diff").style.display = "none";
+  $("solo-cambiate").checked = false;
+  $("tabella-diff-contenitore").style.display = "none";
+  azzeraSuggerimentoVlm();
+  $("btn-vlm").disabled = true;
+}
+
+function aggiornaPannello(ist) {
+  // cambiare istanza invalida il suggerimento visivo precedente
+  if (suggerimentoVlm && (!istanzaSelezionata ||
+      istanzaSelezionata.id !== ist.id)) azzeraSuggerimentoVlm();
+  istanzaSelezionata = ist;
+  $("istanza-descrizione").innerHTML =
+    `<b>#${ist.id}</b> — ${ist.classe} · ` +
+    `${ist.n_punti.toLocaleString("it")} punti · ` +
+    `${ist.dim_1} × ${ist.dim_2} × ${ist.dim_3} m`;
+  ["btn-conferma", "btn-correggi", "btn-elimina", "btn-annulla"]
+    .forEach(id => $(id).disabled = false);
+  aggiornaBottoneVlm();
+}
+
+function selezionaIstanza(ist) {
+  aggiornaPannello(ist);
+  evidenzia(ist);
+  $("conferma-contenuto").scrollIntoView({behavior: "smooth", block: "nearest"});
+}
+
+async function selezionaDaClick(evento) {
+  if (!renderer || !window._centroNuvola) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((evento.clientX - r.left) / r.width) * 2 - 1,
+    -(((evento.clientY - r.top) / r.height) * 2 - 1));
+  const raggio = new THREE.Raycaster();
+  raggio.params.Points.threshold = 0.06;
+  raggio.setFromCamera(ndc, camera);
+  const colpi = raggio.intersectObjects(
+    Object.values(gruppiClasse).filter(g => g.visible));
+  if (!colpi.length) return;
+  const [cx, cy, cz] = window._centroNuvola;
+  const p = colpi[0].point;
+  try {
+    const risposta = await fetch("/api/istanza_da_punto", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({x: p.x + cx, y: p.y + cy, z: p.z + cz})});
+    const d = await risposta.json();
+    if (risposta.ok && d.id && d.istanza) selezionaIstanza(d.istanza);
+  } catch (e) { /* click a vuoto: nessuna istanza */ }
+}
+
+async function aggiornaConferme() {
+  try {
+    const r = await fetch("/api/conferme");
+    if (!r.ok) { $("contatore-conferme").textContent = ""; return; }
+    const d = await r.json();
+    $("contatore-conferme").innerHTML =
+      `<b>${d.n_conferme}</b> conferme · <b>${d.n_rifiuti}</b> eliminati ` +
+      `(sopravvivono tra le sessioni, accanto all'output)`;
+  } catch (e) { /* server assente: il contatore resta vuoto */ }
+}
+
+// --- suggerimento visivo (VLM locale via Ollama) ------------------------------
+
+async function aggiornaStatoVlm() {
+  try {
+    const r = await fetch("/api/vlm_stato");
+    statoVlm = await r.json();
+  } catch (e) { statoVlm = null; }
+  aggiornaBottoneVlm();
+}
+
+function aggiornaBottoneVlm() {
+  const disponibile = statoVlm && statoVlm.disponibile;
+  $("btn-vlm").disabled = !(disponibile && istanzaSelezionata);
+  if (!disponibile) {
+    $("btn-vlm").title = "Ollama non in esecuzione: installalo/avvialo " +
+      "(https://ollama.com) per abilitare il suggerimento visivo locale. " +
+      "Prerequisito opzionale: tutto il resto funziona senza.";
+    $("esito-vlm").textContent = statoVlm === null ? "" :
+      "modello visivo non disponibile (Ollama spento) — facoltativo";
+  } else {
+    $("btn-vlm").title = "chiede un parere al modello visivo LOCALE " +
+      `(${statoVlm.modello_default}): un suggerimento in piu', la decisione resta tua`;
+    if ($("esito-vlm").textContent.startsWith("modello visivo non"))
+      $("esito-vlm").textContent = "";
+  }
+}
+
+function azzeraSuggerimentoVlm() {
+  suggerimentoVlm = null;
+  $("esito-vlm").textContent = "";
+  $("viste-vlm").style.display = "none";
+  $("viste-vlm").innerHTML = "";
+}
+
+async function chiediVlm() {
+  if (!istanzaSelezionata) return;
+  const id = istanzaSelezionata.id;
+  azzeraSuggerimentoVlm();
+  $("btn-vlm").disabled = true;
+  $("esito-vlm").textContent =
+    "chiedo al modello visivo locale... (su CPU puo' richiedere un minuto)";
+  try {
+    const r = await fetch("/api/chiedi_vlm", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({id_istanza: id})});
+    const d = await r.json();
+    if (!r.ok) { $("esito-vlm").textContent = d.errore || r.statusText; return; }
+    // l'utente puo' aver cambiato istanza durante l'inferenza
+    if (!istanzaSelezionata || istanzaSelezionata.id !== d.id_istanza) return;
+    const motivo = (d.risposta || "").split("\n").slice(0, 3).join(" ").slice(0, 300);
+    if (d.classe) {
+      $("esito-vlm").innerHTML =
+        `Il modello visivo suggerisce: <b>${d.classe_nome}</b> — ` +
+        `${motivo} <i>(${d.modello} — vuoi confermare? decidi tu)</i>`;
+      // pre-seleziona la classe suggerita per un eventuale "Correggi":
+      // comodita', non decisione — i bottoni restano quelli di sempre
+      $("conferma-classe").value = d.classe;
+      suggerimentoVlm = {classe: d.classe, modello: d.modello, quando: d.quando};
+    } else {
+      $("esito-vlm").textContent =
+        `il modello (${d.modello}) non ha riconosciuto una classe: "${motivo}"`;
+    }
+    if (d.viste && d.viste.length) {
+      $("viste-vlm").innerHTML = d.viste.map(v =>
+        `<img src="data:image/png;base64,${v}" style="height:150px;` +
+        `margin-right:8px;border:1px solid var(--bordo);border-radius:6px">`
+      ).join("");
+      $("viste-vlm").style.display = "block";
+    }
+  } catch (e) {
+    $("esito-vlm").textContent = "il server non risponde: " + e.message;
+  } finally {
+    aggiornaBottoneVlm();
+  }
+}
+
+async function inviaConferma(azione) {
+  if (!istanzaSelezionata) return false;
+  mostraErrore("");
+  const corpo = {
+    id_istanza: istanzaSelezionata.id,
+    azione: azione,
+    classe: $("conferma-classe").value,
+    nome: $("conferma-nome").value.trim(),
+    // il suggerimento visivo mostrato al momento della decisione viaggia
+    // con la conferma (tracciabilita': quale modello ha suggerito cosa)
+    suggerimento_vlm: suggerimentoVlm,
+  };
+  try {
+    const r = await fetch("/api/conferma", {method: "POST",
+      headers: {"Content-Type": "application/json"}, body: JSON.stringify(corpo)});
+    const d = await r.json();
+    if (!r.ok) { mostraErrore(d.errore || r.statusText); return false; }
+    $("conferma-nome").value = "";
+    aggiornaConferme();
+    return true;
+  } catch (e) {
+    mostraErrore("Il server non risponde: riavvia mepseg-gui. (" + e.message + ")");
+    return false;
+  }
+}
+
+async function avviaAllineamento() {
+  mostraErrore("");
+  $("btn-allinea").disabled = true;
+  try {
+    const avvio = await fetch("/api/allinea", {method: "POST"});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    const ok = await attendiJob();
+    if (ok) {
+      await caricaRisultato();
+      await caricaDiff();
+    }
+  } catch (e) {
+    mostraErrore(e.message);
+  }
+  $("btn-allinea").disabled = false;
+}
+
+async function caricaDiff() {
+  const r = await fetch("/api/diff");
+  if (!r.ok) return;
+  const d = await r.json();
+  istanzeCambiate = d.cambiate;
+  $("esito-diff").textContent =
+    `${d.cambiate.length} istanze hanno cambiato classe grazie alle conferme ` +
+    `(${d.n_accoppiate} ritrovate su ${d.n_prima} del run precedente)`;
+  $("filtro-diff").style.display = d.cambiate.length ? "block" : "none";
+  const corpo = $("tabella-diff").querySelector("tbody");
+  corpo.innerHTML = "";
+  d.cambiate.forEach(ist => {
+    const riga = document.createElement("tr");
+    riga.innerHTML =
+      `<td>${ist.id}</td><td>${ist.classe_prima}</td>` +
+      `<td>${ist.classe_dopo}</td><td>${ist.n_punti.toLocaleString("it")}</td>`;
+    riga.onclick = () => evidenzia(ist);
+    corpo.appendChild(riga);
+  });
+  $("tabella-diff-contenitore").style.display =
+    d.cambiate.length ? "block" : "none";
+}
+
+// --- 5 · Addestra (fine-tuning della rete) -----------------------------------
+
+async function aggiornaDataset() {
+  try {
+    const parametro = encodeURIComponent($("cartella-dataset").value.trim());
+    const r = await fetch("/api/dataset_stato?cartella=" + parametro);
+    const d = await r.json();
+    if (!r.ok) { $("dataset-stato").textContent = d.errore || "—"; return; }
+    if ($("cartella-dataset").value.trim() === "")
+      $("cartella-dataset").placeholder = d.cartella;
+    const nuvole = Object.entries(d.nuvole || {});
+    let testo;
+    if (!nuvole.length) {
+      testo = "Dataset vuoto: esporta le etichette del run corrente per iniziare.";
+    } else {
+      const punti = nuvole.reduce((s, [, v]) => s + (v.punti || 0), 0);
+      const conf = nuvole.reduce((s, [, v]) => s + (v.punti_confermati || 0), 0);
+      testo = `${nuvole.length} nuvole nel dataset · ` +
+        `${punti.toLocaleString("it")} punti · ` +
+        `${conf.toLocaleString("it")} confermati (fiducia piena) — ` +
+        nuvole.map(([n, v]) => `${n} (${(v.istanze_confermate || 0)} ist. confermate)`)
+              .join(" · ");
+    }
+    if (d.pesi && d.pesi.length) {
+      const ultimo = d.pesi[d.pesi.length - 1];
+      testo += ` — pesi: ${ultimo.nome}` +
+        (ultimo.miou_val !== undefined ? ` (mIoU val ${ultimo.miou_val})` : "");
+      $("usa-rete").disabled = false;
+    } else {
+      testo += " — nessun checkpoint ancora";
+      $("usa-rete").disabled = true;
+      $("usa-rete").checked = false;
+    }
+    $("dataset-stato").textContent = testo;
+  } catch (e) {
+    $("dataset-stato").textContent = "Server non raggiungibile.";
+  }
+}
+
+async function esportaDataset() {
+  mostraErrore("");
+  $("btn-esporta").disabled = true;
+  $("stato-addestra").textContent = "esporto le etichette del run...";
+  try {
+    const avvio = await fetch("/api/esporta_dataset", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({cartella_dataset: $("cartella-dataset").value.trim()})});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    const ok = await attendiJob();
+    $("stato-addestra").textContent = ok ? "export completato" : "";
+    await aggiornaDataset();
+  } catch (e) {
+    mostraErrore(e.message);
+    $("stato-addestra").textContent = "";
+  }
+  $("btn-esporta").disabled = false;
+}
+
+async function avviaAddestramento() {
+  mostraErrore("");
+  $("btn-addestra").disabled = true;
+  $("stato-addestra").textContent =
+    "addestramento in corso (le epoche scorrono nel registro della sezione 2)...";
+  try {
+    const avvio = await fetch("/api/allena", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        cartella_dataset: $("cartella-dataset").value.trim(),
+        epoche: parseInt($("epoche").value) || 30,
+      })});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    const ok = await attendiJob();
+    $("stato-addestra").textContent = ok
+      ? "addestramento completato: il checkpoint nuovo e' l'ultimo del dataset"
+      : "";
+    await aggiornaDataset();
+  } catch (e) {
+    mostraErrore(e.message);
+    $("stato-addestra").textContent = "";
+  }
+  $("btn-addestra").disabled = false;
+}
+
+$("solo-cambiate").addEventListener("change", e => {
+  const attivo = e.target.checked;
+  // punti attenuati + un box arancione per ogni istanza cambiata
+  Object.values(gruppiClasse).forEach(g => {
+    g.material.transparent = attivo;
+    g.material.opacity = attivo ? 0.10 : 1.0;
+    g.material.needsUpdate = true;
+  });
+  if (boxDiff) { boxDiff.children.forEach(_liberaMesh); scena.remove(boxDiff); boxDiff = null; }
+  if (attivo && istanzeCambiate.length) {
+    const [cx, cy, cz] = window._centroNuvola;
+    boxDiff = new THREE.Group();
+    istanzeCambiate.forEach(ist => {
+      const box = new THREE.Mesh(
+        new THREE.BoxGeometry(ist.dim_1, ist.dim_2, ist.dim_3),
+        new THREE.MeshBasicMaterial({color: 0xffa500, wireframe: true}));
+      box.position.set(ist.centro_x - cx, ist.centro_y - cy, ist.centro_z - cz);
+      boxDiff.add(box);
+    });
+    scena.add(boxDiff);
+  }
+});
+</script>
+</body>
+</html>

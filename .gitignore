@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Output della pipeline (tutte le cartelle output_*, cache e pesi)
+output/
+output_*/
+*.pth
+*.npy
+
+# Nuvole di punti (troppo grandi per git)
+*.e57
+*.las
+*.laz
+*.pcd
+*.ply
+!esempi/*.ply.txt
+
+# IDE
+.idea/
+.vscode/
+
+# Materiale di lavoro personale (canale 0meptool): checklist, tracker,
+# note interne. Mai in git ne' propagato verso 1meptool.
+_lavoro/

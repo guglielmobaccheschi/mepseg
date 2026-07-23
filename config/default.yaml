@@ -1,0 +1,390 @@
+# Configurazione di default della pipeline di segmentazione MEP.
+# Tutte le misure sono in metri. Copiare questo file e passarlo con
+# `mepseg input.e57 -c mia_config.yaml` per personalizzare le soglie.
+
+preprocess:
+  voxel: 0.03               # dimensione voxel per il sottocampionamento
+  rimuovi_outlier: true
+  outlier_vicini: 16
+  outlier_std: 2.5
+
+strutture:
+  # Fase 0 architettonica: elevation map dei pavimenti OSSERVATI, per
+  # livello. Due usi: (a) i punti sotto il pavimento della propria colonna
+  # sono immagini speculari (pavimento tecnico lucido) -> waste, fuori dal
+  # pool MEP; (b) dove il pavimento del locale e' occluso (sale rack) il
+  # riferimento locale si eredita dalla colonna piu' vicina in cui il
+  # pavimento e' stato davvero visto, invece del ripiego sull'intradosso
+  mappa_pavimenti: true
+  cella_mappa: 0.5              # m, risoluzione della griglia
+  raggio_riempimento_mappa: 8.0 # m: oltre questa distanza dalle celle
+                                # coperte la mappa non risponde (niente
+                                # riferimento = niente taglio)
+  fusione_livelli_mappa: 0.5    # quote di pavimento entro 0.5 m = stesso livello
+  tolleranza_sotto_pavimento: 0.20  # m sotto la mappa prima di dichiarare
+                                # riflesso: i pavimenti veri sono piatti, i
+                                # riflessi stanno a ~1.5 m sotto (mediana)
+  soglia_distanza_piano: 0.02   # tolleranza RANSAC piano
+  min_area_piano: 2.0           # area minima (m^2) perche' un piano RANSAC sia
+                                # un candidato strutturale: soglia fisica, non
+                                # dipende dalla dimensione della nuvola
+  min_punti_piano_min: 1500
+  max_piani: 60                 # scene multi-locale: molti piani da estrarre
+  min_lato_orizzontale: 1.5     # lato minimo perche' un piano orizzontale
+                                # sia soffitto/pavimento (esclude facce di condotte)
+  min_altezza_parete: 1.8
+  min_area_parete: 3.0
+  min_coerenza_normali: 0.70  # frazione minima di inlier con normale allineata
+                              # al piano (scarta i piani RANSAC "fantasma")
+  min_copertura_orizzontale: 0.55  # frazione di ingombro occupata: un soffitto
+                                   # e' pieno, i fondi coplanari di condotte no
+  max_frazione_oltre_piano: 0.08   # in alternativa: quasi nulla sopra un
+                                   # soffitto / sotto un pavimento
+  cella_copertura: 0.15
+  min_copertura_parete: 0.35  # i fronti coplanari di una fila di rack non
+                              # devono essere assorbiti come "parete"
+  # pilastri: celle in pianta occupate con continuita' da pavimento a
+  # soffitto (i rack si fermano sotto il soffitto, le calate non toccano
+  # terra); rilevati prima del clustering
+  cella_pilastro: 0.15
+  copertura_min_pilastro: 0.85
+  lato_min_pilastro: 0.2
+  lato_max_pilastro: 1.2
+  allungamento_max_pilastro: 2.5  # rapporto max tra i lati del footprint:
+                                  # i frammenti di tramezzo sono striscie
+  # travi di sostegno dei piani superiori: corridoi VUOTI a striscia nei
+  # soffitti accettati (il corpo della trave e' in ombra); i punti che vi
+  # pendono dentro diventano TRAVE invece di MEP generico
+  rileva_travi: true
+  cella_trave: 0.15
+  larghezza_min_trave: 0.3
+  larghezza_max_trave: 1.0
+  lunghezza_min_trave: 1.2
+  allungamento_min_trave: 2.5
+  profondita_trave: 0.6
+  # anti-assorbimento: le plafoniere a filo soffitto inglobate dal piano
+  # RANSAC (soglia 2 cm) sporgono qualche cm sotto la quota dominante e
+  # vengono restituite al pool MEP se compatte
+  estrai_sporgenze: true
+  sporgenza_min_soffitto: 0.03
+  lato_max_sporgenza: 3.0
+  finestra_quota_locale: 2.0  # m: la quota dominante del soffitto e' il
+                              # massimo in questa finestra mobile (ali a
+                              # quota uniforme comprese), non piu' globale
+  dilata_sporgenze: 1         # celle di dilatazione: l'apparecchio esce
+                              # intero, non a cocci sotto-soglia
+  # recupero residui: cluster sottili coplanari a un piano accettato
+  # (serramenti, pezzi di muro dietro porte/occlusioni) = struttura
+  completa_pareti: true     # etichetta PER PUNTO (pre-clustering) i punti
+                            # coplanari a pareti accettate: le fasce di muro
+                            # sopra i rack non entrano nei cluster misti
+  allineamento_completa_pareti: 0.95  # severo: sotto 0.9 mutila la striscia
+                            # tangente delle condotte rasenti ai muri
+  dist_recupero_residui: 0.05
+  frazione_recupero_residui: 0.8
+  spessore_max_residuo: 0.12
+
+clustering:
+  metodo: crescita          # "crescita" = continuita' di superficie (edge
+                            # detection 3D: bordi di salto e di piega,
+                            # convessita' alla LCCP); "dbscan" = sola
+                            # distanza euclidea (metodo storico)
+  eps: 0.08                 # raggio di vicinato: ~2.5x il voxel
+  min_punti: 10             # basso: su tubi sottili il vicinato e' piccolo
+  # parametri del metodo "crescita"
+  vicini_grafo: 8           # k vicini del grafo di connettivita'
+  angolo_liscio: 18.0       # gradi tra normali: sotto = stessa superficie
+  salto_max: 0.04           # m lungo la normale: sopra = superfici parallele
+                            # distinte (bordo di salto, si taglia sempre)
+  soglia_concava: 0.15      # quanto una giunzione deve "rientrare" per
+                            # essere un confine tra oggetti diversi
+  min_frazione_convessa: 0.5  # frazione di contatti non concavi per fondere
+                              # due patch adiacenti
+  patch_minima: 30          # patch piu' piccole si aggregano al vicino con
+                            # piu' contatto (protegge tubi sottili e gusci
+                            # ondulati dalla frammentazione)
+  contatto_max_patch: 2.5   # x voxel: una patch piccola si aggancia solo se
+                            # i contatti sono PASSI CORTI — lo speckle a
+                            # mezz'aria non si attacca piu' alle superfici a
+                            # distanza di grafo (fino a eps = 8 cm)
+  offset_orientamento: 0.06 # m di sbalzo per il test dello spazio libero
+                            # (orienta le normali verso il lato "visto")
+  # sbarramento di evidenza PER PUNTO, prima del grafo: un punto senza un
+  # minimo di vicinato non appartiene a nessuna superficie scansionata
+  # (fantasmi multipath, speckle) -> waste, mai nel grafo. Estende al
+  # livello piu' basso il principio "nessuna etichetta senza evidenza"
+  evidenza_punto: true
+  raggio_evidenza: 2.5      # x voxel efficace
+  min_vicini_evidenza: 4    # vicini richiesti entro il raggio (nuvola intera)
+  # briciole dello spezza-blob: le celle erose vengono riassegnate al
+  # blocco superstite piu' vicino solo entro un guinzaglio che scala con
+  # l'erosione usata (almeno questo valore); oltre, i punti NON ereditano
+  # la classe di un blocco lontano e restano MEP generico (bucket onesto)
+  raggio_briciole: 0.5      # m
+  # cluster sotto questa soglia non diventano istanze: restano MEP generico
+  # (rumore onesto, bersaglio del finder/DL). Toglie le micro-istanze da
+  # tabella e regole senza toccare la meccanica del clustering (min_punti)
+  min_punti_istanza: 100
+  normali_locali: true      # ricalcola normali a raggio stretto per i bordi
+                            # (quelle del preprocess spalmano gli spigoli)
+  # fase A/B — famiglie di superficie e assemblaggio semantico
+  soglia_cilindrica: 0.10   # lambda2 della covarianza normali: sopra =
+                            # normali "a ventaglio" = superficie curva
+  soglia_irregolare: 0.10   # lambda3: sopra = normali in tutte le direzioni
+                            # (grovigli di cavi). Le famiglie si giudicano
+                            # sulle normali LISCE del preprocess: la
+                            # corrugazione delle condotte flessibili si
+                            # media e la firma resta cilindrica
+  area_max_fusione_mista: 1.5  # m²: sopra questa taglia una lastra o un
+                            # groviglio non si fondono con un cilindro
+                            # (la condotta non viene inghiottita dal
+                            # tappeto di cavi); le lastre piccole (staffe,
+                            # flange) restano libere di fondersi
+  # taglio per discontinuita' di COLORE (richiede RGB nella nuvola: PLY/LAS/
+  # E57 con colore letto; per il grande FiberCop in streaming la cache va
+  # rigenerata a 6 canali - vedi streaming). Due punti vicini di colore molto
+  # diverso vengono separati come un bordo di salto: e' il segnale che la
+  # geometria da sola non ha in una sala densa dello stesso materiale, dove
+  # apparecchiature distinte si toccano e la crescita le fonde. Senza colore
+  # nella nuvola l'opzione e' ignorata (nessun effetto).
+  taglio_colore: true
+  soglia_colore: 60.0       # distanza RGB (0-255) oltre cui si taglia il
+                            # collegamento; da tarare a video (piu' bassa =
+                            # piu' aggressivo). 60 separa colori nettamente
+                            # diversi tollerando ombre/gradienti di intensita'
+  salva_famiglie: false     # export debug <nome>_famiglie.ply colorato
+                            # per famiglia di superficie
+  lato_max_spezza: 8.0      # un cluster piu' esteso di cosi' in pianta non e'
+                            # un oggetto ma un "mega-cluster" (file di rack
+                            # saldate da cavi): si stacca la fascia soffitto
+                            # e la si ri-clusterizza prima di classificare
+  fascia_soffitto_spezza: 1.2  # spessore della fascia sotto il soffitto locale
+  # erosione del mega-cluster residuo: le file di rack sono bande spesse,
+  # i ponti che le saldano (fasci cavi) sono sottili e si rompono erodendo
+  # l'impronta in pianta; ogni punto va poi alla componente piu' vicina
+  lato_min_erosione: 4.0    # applica solo a blob estesi in ENTRAMBE le
+                            # direzioni (i nastri condotta restano interi)
+  # spezzatura ai vuoti periodici: una fila di neon saldata da un cavo ha
+  # 3+ blocchi densi separati da intervalli vuoti (un oggetto continuo
+  # occluso ne ha al piu' 1-2); i segmenti tornano alle regole singole e
+  # la serialita'/catena ricompone il senso
+  spezza_vuoti: true
+  gap_min_vuoti: 0.15
+  min_segmenti_vuoti: 3
+  sezione_max_vuoti: 0.8
+  erosione_spezza: 0.3      # metri di erosione dell'impronta
+  cella_erosione: 0.15
+  # separazione per orientamento (RANSAC sulle normali proiettate sulla
+  # sfera unitaria, dal confronto con la letteratura — Li/Gan/Wang 2025):
+  # dentro un cluster fuso, i punti coerenti con una direzione dominante
+  # (le normali di un cilindro giacciono sul cerchio massimo ortogonale
+  # all'asse) diventano sotto-istanze; si ripete sul residuo.
+  # ATTIVA DI DEFAULT (20/07: fine della disciplina "pipeline congelata"),
+  # protetta dal pre-gate geometrico sotto (agisce solo sui cluster
+  # sottili). Verificare comunque sui casi noti (ex-id 56) col confronto
+  # per posizione (scripts/confronta_run.py): resta lo strumento di
+  # giudizio, non piu' un cancello che blocca l'attivazione.
+  # Trappola nota: un gomito di condotta ha due direzioni legittime e
+  # verrebbe diviso in due tronchi — da arbitrare a video.
+  separa_orientamento: true
+  tolleranza_angolo_gradi: 10.0   # scarto max della normale dal cerchio
+                                  # massimo dell'asse candidato
+  min_punti_direzione: 150        # sotto: nessuna direzione "dominante"
+  min_frazione_direzione: 0.15    # ...e almeno questa frazione del cluster
+  max_direzioni: 4                # oltre: e' un groviglio, non una fusione
+  # pre-gate geometrico (§3.2 chiede di agire sui candidati condotta/
+  # passerella): la separazione parte solo se il cluster e' una struttura
+  # SOTTILE — rapporto minima/massima estensione principale (PCA) sotto
+  # soglia. Una condotta o una croce di condotte ha spessore << lunghezza;
+  # un blob pieno (apparecchiatura) ha il rapporto vicino a 1 e resta
+  # intero. Da tarare a video con confronta_run.py all'accensione.
+  pregate_orientamento: true
+  sfericita_max_orientamento: 0.35  # sopra = blob compatto, non si separa
+
+cilindro:
+  min_inlier: 0.55
+  tolleranza_relativa: 0.15
+  tolleranza_min: 0.01
+  raggio_massimo: 1.5
+
+regole:
+  # sbarramento di evidenza: sotto questa densita' (punti reali / attesi sul
+  # guscio OBB) nessuna classe impiantistica e' concessa: waste se esteso,
+  # generico se piccolo. Punti minimi per classe: min_punti_<classe>
+  min_densita_mep: 0.05
+  volume_min_waste: 0.20
+  min_punti_sprinkler: 20
+  min_punti_tubazione: 30
+  min_punti_condotta: 80
+  min_punti_passerella: 80
+  min_punti_terminale: 25
+  min_punti_luce: 30
+  min_punti_apparecchiatura: 200
+  appoggio_max_apparecchiatura: 1.0  # una macchina sta a terra/basamento.
+                            # NON stringere sotto ~0.9: nelle sale rack il
+                            # pavimento e' occluso dalle macchine, nessun
+                            # piano pavimento viene accettato e il
+                            # riferimento locale cade ~0.8 m piu' in basso
+                            # (i rack veri "galleggiano" fittiziamente);
+                            # i tappeti di cavi sospesi stanno a 2+ m
+  # contesto di scena: classi impossibili in questo tipo di ambiente,
+  # es. [sprinkler] in un data center (l'acqua distruggerebbe le macchine).
+  # Equivalente da CLI: --escludi sprinkler,terminale_aria
+  classi_escluse: []
+  # sprinkler
+  dim_max_sprinkler: 0.35
+  dist_soffitto_sprinkler: 1.0
+  # cilindri
+  min_inlier_cilindro: 0.50   # come il ramo di distacco appendici: le staffe
+                              # e i frammenti che il clustering attacca a un
+                              # tubo vero diluiscono gli inlier (~10%); la
+                              # discriminazione dai box la fanno concentrazione
+                              # normali, sezione/raggio e coerenza radiale
+  min_coerenza_radiale: 0.50  # tollerante con le condotte flessibili "a
+                              # fisarmonica" (ondulazioni = normali disturbate);
+                              # le passerelle restano escluse dal test sezione
+
+  min_sezione_su_raggio: 0.75
+  max_concentrazione_normali: 0.65  # col doppio istogramma sfasato un box
+                                    # misura ~0.83 (prima sfuggiva a 0.55):
+                                    # 0.65 riammette i gusci flessibili
+                                    # borderline tenendo fuori i box
+  min_linearita_cilindro: 0.5
+  lunghezza_min_cilindro: 0.4
+  raggio_max_tubazione: 0.10
+  raggio_max_condotta: 0.60
+  raggio_condotta_sospetta: 0.35   # sopra questo raggio, una "condotta"
+  dist_pavimento_min_condotta: 0.2 # appoggiata al pavimento e' un armadio
+  # pilastri strutturali (tondi o rettangolari)
+  dist_soffitto_pilastro: 0.4   # la testa deve raggiungere il soffitto
+  dist_pavimento_pilastro: 0.4  # la base deve toccare il pavimento
+  altezza_min_pilastro: 2.0     # sviluppo verticale minimo (robusto)
+  lato_min_pilastro: 0.2        # sezione minima (sotto: e' un montante)
+  lato_max_pilastro: 1.2
+  # orientamento / posizione
+  max_verticalita_orizzontale: 0.35
+  elongazione_min: 2.0
+  dist_soffitto_impianti: 1.5
+  # passerelle cavi
+  lunghezza_min_passerella: 2.0
+  altezza_max_passerella: 0.15
+  larghezza_min_passerella: 0.10
+  larghezza_max_passerella: 0.70
+  # passerella CARICA di cavi: i cavi che debordano alzano la sezione fino
+  # a ~0.30 e la facevano classificare condotta rettangolare. La banda
+  # 0.15-0.30 e' anche quella delle batterie di neon: il nastro deve
+  # essere inequivocabile (piu' lungo e piu' allungato della via normale)
+  # per non rubare luci ne' condotte vere
+  altezza_max_passerella_carica: 0.30
+  larghezza_min_passerella_carica: 0.20
+  lunghezza_min_passerella_carica: 2.5
+  elongazione_min_passerella_carica: 3.0
+  # condotte rettangolari
+  larghezza_min_condotta_rett: 0.20
+  larghezza_max_condotta_rett: 1.50
+  altezza_min_condotta_rett: 0.12
+  altezza_max_condotta_rett: 1.20
+  # luci e terminali aria
+  spessore_max_piatto: 0.25
+  estensione_z_max_piatto: 0.30 # sviluppo verticale max (5°-95° percentile):
+                                # esclude le lastre inclinate che toccano il
+                                # soffitto solo con un bordo E i corpi
+                                # illuminanti gonfiati dal riflesso sotto
+  min_densita_luce: 0.08        # anti-riflesso: il bagliore e' rado
+  frazione_alta_min_piatto: 0.5 # via d'uscita per le lampade sospese: corpo
+                                # concentrato nei 15 cm superiori anche se
+                                # l'estensione z totale supera la soglia
+  dist_soffitto_piatti: 0.6
+  dim_min_piatto: 0.15
+  dim_max_piatto: 3.0         # batterie di luci affiancate arrivano a ~3 m;
+                              # il controsoffitto non e' piu' un rischio,
+                              # viene rimosso a monte come SOFFITTO
+  rapporto_max_terminale: 1.6
+  dim_max_terminale: 0.9
+  # lastre verticali strutturali (fasce di muro sopra i rack, tramezzi
+  # occlusi bocciati dalla fase strutturale)
+  spessore_max_lastra_parete: 0.15
+  lato_min_lastra_parete: 1.5
+  altezza_min_lastra_parete: 0.8
+  area_min_lastra_parete: 2.0
+  # apparecchiature
+  dim_min_apparecchiatura: 0.35
+  dim_max_lato_apparecchiatura: 0.60
+  volume_min_apparecchiatura: 0.40
+  min_densita_apparecchiatura: 0.10  # punti reali / punti attesi sul guscio
+                                     # OBB: sotto questa evidenza un volume
+                                     # esteso e' rumore, non apparecchiatura
+  # spareggio per COLORE (opt-in, VUOTO di default: il tool resta agnostico
+  # sulle convenzioni cromatiche, che cambiano da impianto a impianto).
+  # Ogni voce riclassifica le sole istanze MEP_GENERICO il cui colore
+  # dominante combacia — mai sovrascrive una classe decisa dalla geometria,
+  # e richiede colore uniforme. Codifica il codice colore dell'IMPIANTO
+  # SPECIFICO: non lasciarlo attivo su nuvole di edifici diversi. Esempio:
+  #   colori_guida:
+  #     - {classe: passerella_cavi, rgb: [230, 200, 0], tolleranza: 45}
+  #     - {classe: apparecchiatura, rgb: [200, 0, 0]}
+  colori_guida: []
+  tolleranza_guida_colore: 45.0   # distanza RGB max se la voce non la indica
+  min_uniformita_guida: 0.6       # sotto: colore troppo misto, indizio saltato
+
+contesto:
+  # gli impianti sono una rete: regole di coerenza topologica
+  luci_seriali: true          # file di elementi lineari corti e paralleli
+                              # sotto il soffitto = luci (neon cilindrici o
+                              # lampade a corpo scatolare finite nel generico)
+  raggio_max_neon: 0.10       # raggio max del fit cilindrico di un neon
+                              # (allineato a raggio_max_tubazione: la
+                              # discriminazione vera la fa la serialita')
+  sezione_max_neon: 0.35      # lato max della sezione per i corpi scatolari
+  lunghezza_min_neon: 0.12  # basso APPOSTA: i frammenti di plafoniera
+                            # recuperati dal soffitto sono corti, e qui la
+                            # prova e' la RIPETIZIONE in fila, non la taglia
+  lunghezza_max_neon: 2.5
+  dist_soffitto_neon: 1.2
+  dist_max_neon: 6.0          # distanza max in pianta tra membri di una fila
+  min_ripetizioni: 3
+  # anti-riflesso nella regola seriale: il bagliore attorno alle lampade
+  # forma nuvole rade e spesse che si ripetono in fila come le lampade vere
+  estensione_z_max_neon: 0.30
+  densita_min_neon: 0.08
+  frazione_alta_min_neon: 0.5 # come frazione_alta_min_piatto: lampada vera
+                              # = corpo in alto, riflesso = massa distribuita
+  ancoraggio: true            # tubi/condotte con entrambe le estremita' nel
+                              # vuoto (nessuna continuita', apparecchiatura o
+                              # struttura) = arredo/non-MEP, non impianti
+  raggio_ancoraggio: 0.4
+  spessore_fetta_estremita: 0.2
+  # catene assiali: segmenti snelli, collineari e di sezione simile di uno
+  # stesso corri-dotto (blindosbarra, condotta) spezzato dal clustering
+  # votano una classe unica (ripara anche i declassamenti dell'ancoraggio)
+  catene: true
+  gap_max_catena: 0.6
+  offset_lat_catena: 0.35
+  parallelismo_catena: 0.9
+  rapporto_sezione_catena: 2.5
+  sezione_max_catena: 0.8
+
+somiglianza:
+  # "trova simili": le istanze dubbie che combaciano con la firma geometrica
+  # di un oggetto confermato (--salva-modello) ne ereditano la classe.
+  # I modelli si caricano da CLI con --modelli percorso.json.
+  # Fase 4: --conferme conferme.json aggiunge conferme/correzioni/rifiuti
+  # dell'utente — le conferme propagano come modelli e pinnano l'istanza
+  # specifica (ri-identificata tra run per centro +-0.3 m e lati OBB +-20%),
+  # i rifiuti bloccano ogni conversione a firma coincidente
+  tolleranza_dim_rel: 0.4   # tolleranza relativa sui lati OBB del modello
+  tolleranza_dim_abs: 0.08  # margine assoluto minimo (m): le scansioni
+                            # parziali accorciano gli oggetti reali
+  tolleranza_quota: 0.6     # tolleranza sulla quota da soffitto/pavimento
+  classi_bersaglio:         # solo le classi "dubbie" possono essere convertite
+    - mep_generico
+
+streaming:
+  soglia_punti: 20000000    # sopra questa dimensione i file E57 vengono
+                            # elaborati a blocchi senza caricare tutto in RAM
+
+dl:
+  pesi: null                # percorso a un checkpoint .pth per attivare la fusione
+  device: auto              # auto | cpu
+  k_vicini: 16
+  max_punti_blocco: 65536
