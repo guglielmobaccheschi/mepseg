@@ -14,6 +14,7 @@ from .classi import ClasseMEP, NOMI_CLASSI
 from .io_nuvole import (
     carica_nuvola,
     salva_las_classificata,
+    salva_las_per_gruppi,
     salva_ply_classificata,
 )
 from .pipeline import segmenta
@@ -368,6 +369,12 @@ def principale(argv: list[str] | None = None) -> int:
                 punti_out,
                 etichette_out,
             )
+            # split scan-to-BIM: strutturale / mep / scarto (per lo streaming
+            # lo split e' gia' fatto internamente da esporta_las_streaming)
+            for gruppo, percorso in salva_las_per_gruppi(
+                percorso_las, punti_out, etichette_out
+            ).items():
+                log.info("  LAS gruppo '%s': %s", gruppo, percorso.name)
         log.info("LAS classificato: %s", percorso_las)
 
     percorso_json, percorso_csv = genera_report(risultato, cartella, nome_base)

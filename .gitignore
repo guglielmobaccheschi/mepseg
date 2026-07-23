@@ -13,6 +13,11 @@ output_*/
 *.pth
 *.npy
 
+# Dataset pubblici scaricati (dati di terzi, decine di GB) e dataset di
+# training generato dall'adattatore: solo canale 0meptool, mai in git.
+dataset_pubblici/
+dataset_mep/
+
 # Nuvole di punti (troppo grandi per git)
 *.e57
 *.las

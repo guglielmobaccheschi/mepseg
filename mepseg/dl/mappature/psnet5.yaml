@@ -1,0 +1,20 @@
+# Lista di conversione PSNET5 -> tassonomia mepseg (ClasseMEP).
+#
+# PSNET5 (Yin et al. 2021, HKUST): 80M punti, 4 scene industriali (impianti
+# idrici), formato in stile S3DIS. Le etichette NON stanno nei punti: la
+# classe e' il prefisso del NOME FILE dell'annotazione
+#   Area_*/Room_*/Annotations/<classe>_<scena>.txt   (es. pipe_chiller.txt)
+# dove <scena> in {chiller, OSCG, SPH, WRT2} NON e' una classe.
+#
+# Chiave  = nome classe come compare nel nome file (minuscolo).
+# Valore  = nome della ClasseMEP di destinazione (vedi mepseg/classi.py).
+#
+# Sono corrispondenze RAGIONATE e MODIFICABILI, non leggi: il tool resta
+# agnostico e tu puoi correggerle per il tuo impianto. Le classi del dataset
+# non elencate qui vengono SALTATE con un avviso (mai indovinate).
+mappa:
+  pipe: TUBAZIONE            # tubazioni idroniche/di processo dell'impianto
+  pump: APPARECCHIATURA      # pompe = unita' compatte
+  tank: APPARECCHIATURA      # serbatoi (discutibile: valuta anche MEP_GENERICO)
+  ibeam: TRAVE               # travi a I strutturali
+  rectangularbeam: TRAVE     # travi rettangolari strutturali

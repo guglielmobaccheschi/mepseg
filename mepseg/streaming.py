@@ -248,13 +248,23 @@ def esporta_las_streaming(
     etichette_ridotte: np.ndarray,
     dimensione_blocco: int = 5_000_000,
     bbox: tuple | None = None,
+    dividi_gruppi: bool = True,
 ) -> Path:
     """Seconda passata: rilegge il file, propaga le etichette dal punto
-    ridotto piu' vicino e scrive il LAS classificato a blocchi."""
+    ridotto piu' vicino e scrive il LAS classificato a blocchi.
+
+    Con ``dividi_gruppi`` (default) scrive ANCHE, in parallelo e nella stessa
+    passata, i tre LAS separati per macro-gruppo scan-to-BIM
+    (``..._segmentata_strutturale.las`` / ``_mep.las`` / ``_scarto.las``): ogni
+    punto viene instradato nel file del proprio gruppo mantenendo etichetta e
+    colore per classe. I file di gruppo rimasti vuoti vengono rimossi a fine
+    export."""
     import laspy
+    from contextlib import ExitStack
+
     from scipy.spatial import cKDTree
 
-    from .classi import colora_etichette
+    from .classi import GRUPPI_MACRO, colora_etichette, gruppo_per_codice
 
     percorso_las = Path(percorso_las)
     percorso_las.parent.mkdir(parents=True, exist_ok=True)
@@ -264,8 +274,32 @@ def esporta_las_streaming(
     header.offsets = punti_ridotti.min(axis=0)
     header.scales = np.array([0.001, 0.001, 0.001])
 
+    # writer per gruppo: header indipendenti ma con gli stessi offset/scale del
+    # file completo, cosi' i record creati sull'header principale sono validi
+    # per tutti. La LUT codice-classe -> indice-gruppo instrada in un colpo.
+    nomi_gruppi = list(GRUPPI_MACRO.keys())
+    lut_gruppo = gruppo_per_codice()
+    percorsi_gruppo = {
+        g: percorso_las.with_name(f"{percorso_las.stem}_{g}{percorso_las.suffix}")
+        for g in nomi_gruppi
+    }
+
     scritti = 0
-    with laspy.open(str(percorso_las), mode="w", header=header) as scrittore:
+    scritti_gruppo = {g: 0 for g in nomi_gruppi}
+    with ExitStack() as stack:
+        scrittore = stack.enter_context(
+            laspy.open(str(percorso_las), mode="w", header=header)
+        )
+        scrittori_gruppo: dict[str, object] = {}
+        if dividi_gruppi:
+            for g in nomi_gruppi:
+                h = laspy.LasHeader(version="1.4", point_format=7)
+                h.offsets = header.offsets
+                h.scales = header.scales
+                scrittori_gruppo[g] = stack.enter_context(
+                    laspy.open(str(percorsi_gruppo[g]), mode="w", header=h)
+                )
+
         for blocco, _ in leggi_e57_a_blocchi(percorso_e57, dimensione_blocco):
             blocco = _filtra_bbox(blocco, bbox)
             if len(blocco) == 0:
@@ -284,5 +318,35 @@ def esporta_las_streaming(
             record.classification = classi.astype(np.uint8)
             scrittore.write_points(record)
             scritti += len(blocco)
+
+            if dividi_gruppi:
+                indice_gruppo = lut_gruppo[classi.astype(np.int64)]
+                for idx, g in enumerate(nomi_gruppi):
+                    sel = indice_gruppo == idx
+                    n_sel = int(sel.sum())
+                    if n_sel == 0:
+                        continue
+                    sub_blocco, sub_colori = blocco[sel], colori[sel]
+                    sub = laspy.ScaleAwarePointRecord.zeros(n_sel, header=header)
+                    sub.x, sub.y, sub.z = (
+                        sub_blocco[:, 0], sub_blocco[:, 1], sub_blocco[:, 2],
+                    )
+                    sub.red, sub.green, sub.blue = (
+                        sub_colori[:, 0], sub_colori[:, 1], sub_colori[:, 2],
+                    )
+                    sub.classification = classi[sel].astype(np.uint8)
+                    scrittori_gruppo[g].write_points(sub)
+                    scritti_gruppo[g] += n_sel
             log.info("  export LAS: %s punti scritti", f"{scritti:,}")
+
+    if dividi_gruppi:
+        for g in nomi_gruppi:
+            if scritti_gruppo[g] == 0:
+                # gruppo assente in questa nuvola: rimuovo il LAS vuoto
+                percorsi_gruppo[g].unlink(missing_ok=True)
+            else:
+                log.info(
+                    "  LAS gruppo '%s': %s punti -> %s",
+                    g, f"{scritti_gruppo[g]:,}", percorsi_gruppo[g].name,
+                )
     return percorso_las

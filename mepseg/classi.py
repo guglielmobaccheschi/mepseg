@@ -92,6 +92,62 @@ COLORI_CLASSI: dict[ClasseMEP, tuple[int, int, int]] = {
 NUM_CLASSI = len(ClasseMEP)
 
 
+# Raggruppamento delle 17 classi in tre macro-categorie, per l'export del LAS
+# a piena risoluzione diviso in file distinti (flusso scan-to-BIM): la parte
+# strutturale/architettonica, gli impianti MEP e lo scarto vanno ciascuno nel
+# proprio .las. Il partizionamento e' ESAUSTIVO ed ESCLUSIVO: ogni classe sta
+# in un solo gruppo, e i tre gruppi coprono tutte le classi (verificato in
+# test). L'ordine delle chiavi e' quello degli indici usati da
+# :func:`gruppo_per_codice`.
+GRUPPI_MACRO: dict[str, tuple[ClasseMEP, ...]] = {
+    # strutturale/architettonico: cio' che diventa il modello dell'edificio
+    "strutturale": (
+        ClasseMEP.STRUTTURA,
+        ClasseMEP.PAVIMENTO,
+        ClasseMEP.SOFFITTO,
+        ClasseMEP.PARETE,
+        ClasseMEP.PILASTRO,
+        ClasseMEP.TRAVE,
+    ),
+    # impianti MEP: tutte le classi impiantistiche, dal riconosciuto al generico
+    "mep": (
+        ClasseMEP.CONDOTTA_CIRCOLARE,
+        ClasseMEP.CONDOTTA_RETTANGOLARE,
+        ClasseMEP.TUBAZIONE,
+        ClasseMEP.PASSERELLA_CAVI,
+        ClasseMEP.LUCE,
+        ClasseMEP.SPRINKLER,
+        ClasseMEP.TERMINALE_ARIA,
+        ClasseMEP.APPARECCHIATURA,
+        ClasseMEP.MEP_GENERICO,
+    ),
+    # scarto: cio' che non va modellato — arredo reale e rumore di scansione
+    "scarto": (
+        ClasseMEP.NON_MEP_ARREDO,
+        ClasseMEP.WASTE,
+    ),
+}
+
+# Etichetta leggibile per il nome del file / i log di ogni gruppo.
+NOMI_GRUPPI_MACRO: dict[str, str] = {
+    "strutturale": "Strutturale/architettonico",
+    "mep": "Impianti MEP",
+    "scarto": "Scarto (arredo + waste)",
+}
+
+
+def gruppo_per_codice() -> np.ndarray:
+    """LUT ``(NUM_CLASSI,)`` che mappa ogni codice classe all'indice del suo
+    macro-gruppo, nell'ordine di :data:`GRUPPI_MACRO` (0=strutturale, 1=mep,
+    2=scarto). Serve a instradare i punti per gruppo in blocchi (streaming)
+    con una sola indicizzazione, senza ``np.isin`` per gruppo."""
+    lut = np.full(NUM_CLASSI, -1, dtype=np.int8)
+    for indice, classi in enumerate(GRUPPI_MACRO.values()):
+        for classe in classi:
+            lut[int(classe)] = indice
+    return lut
+
+
 def tabella_colori() -> np.ndarray:
     """Ritorna una lookup table (NUM_CLASSI, 3) uint8 indicizzabile per codice."""
     lut = np.zeros((NUM_CLASSI, 3), dtype=np.uint8)

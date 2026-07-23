@@ -238,41 +238,92 @@
 
   <section>
     <h2>5 · Addestra — fine-tuning della rete (progressivo)</h2>
-    <div id="addestra-vuota" class="suggerimento">Completa una segmentazione
-      e qualche conferma, poi esporta le etichette nel dataset cumulativo:
-      ogni nuvola confermata rende la rete piu' brava, e i run successivi
-      possono fonderla (riclassifica solo il MEP generico — mai strutture
-      ne' conferme).</div>
-    <div id="addestra-contenuto" style="display:none">
-      <div class="riga">
+    <div class="suggerimento">Due modi per nutrire la rete: <b>importare un
+      dataset pubblico</b> gia' etichettato (avvio a freddo), oppure
+      <b>esportare le etichette del run corrente</b> dopo qualche conferma
+      (ogni nuvola confermata la rende piu' brava). I run successivi possono
+      fonderla: riclassifica solo il MEP generico, mai strutture ne' conferme.</div>
+
+    <div class="riga" style="margin-top:12px">
+      <div class="larga">
+        <label>Cartella dataset di training (resta sul tuo disco)</label>
+        <input id="cartella-dataset" placeholder="vuota = dataset_mep (accanto alla nuvola, o cartella di lavoro)">
+      </div>
+      <div class="stretta"><button class="secondario"
+        onclick="aggiornaDataset()">Aggiorna stato</button></div>
+    </div>
+    <div id="dataset-stato" class="suggerimento" style="margin-top:10px">—</div>
+
+    <!-- A) Importa un dataset pubblico (PSNET5, ...) -->
+    <div style="margin-top:18px;border-top:1px solid var(--bordo);padding-top:14px">
+      <label style="color:var(--testo)"><b>A · Importa un dataset pubblico</b></label>
+      <div class="riga" style="margin-top:8px">
         <div class="larga">
-          <label>Cartella dataset (cumulativo, resta sul tuo disco)</label>
-          <input id="cartella-dataset" placeholder="vuota = dataset_mep accanto alla nuvola">
+          <input id="pubblico-sorgente" placeholder="cartella scaricata, es. ...\dataset_pubblici\PSNet5">
         </div>
         <div class="stretta"><button class="secondario"
-          onclick="aggiornaDataset()">Aggiorna stato</button></div>
+          onclick="sfogliaCartella('pubblico-sorgente')">Sfoglia cartella…</button></div>
       </div>
-      <div id="dataset-stato" class="suggerimento" style="margin-top:10px">—</div>
-      <div class="riga" style="margin-top:14px">
-        <div class="stretta"><button id="btn-esporta"
-          onclick="esportaDataset()">Esporta le etichette di questo run</button></div>
+      <div class="riga" style="margin-top:8px">
+        <div style="max-width:200px">
+          <label>Dataset</label>
+          <select id="pubblico-dataset"></select>
+        </div>
         <div style="max-width:140px">
+          <label>Voxel (m)</label>
+          <input id="pubblico-voxel" type="number" value="0.02" min="0.005" max="0.2" step="0.005">
+        </div>
+        <div style="max-width:150px">
+          <label>Max punti/area</label>
+          <input id="pubblico-max" type="number" placeholder="nessuno" min="10000" step="100000">
+        </div>
+        <div class="stretta"><button id="btn-importa"
+          onclick="importaPubblico()">Importa nel dataset</button></div>
+        <div><span id="stato-importa" class="suggerimento"></span></div>
+      </div>
+    </div>
+
+    <!-- B) Esporta le etichette del run corrente -->
+    <div style="margin-top:18px;border-top:1px solid var(--bordo);padding-top:14px">
+      <label style="color:var(--testo)"><b>B · Esporta le etichette del run corrente</b></label>
+      <div class="riga" style="margin-top:8px">
+        <div class="stretta"><button id="btn-esporta" disabled
+          onclick="esportaDataset()">Esporta le etichette di questo run</button></div>
+        <div><div class="suggerimento" style="margin:0">Disponibile dopo una
+          segmentazione con qualche conferma.</div></div>
+      </div>
+    </div>
+
+    <!-- C) Addestra la rete -->
+    <div style="margin-top:18px;border-top:1px solid var(--bordo);padding-top:14px">
+      <label style="color:var(--testo)"><b>C · Addestra la rete</b></label>
+      <div class="riga" style="margin-top:8px">
+        <div style="max-width:110px">
           <label>Epoche</label>
           <input id="epoche" type="number" value="30" min="1" max="500">
+        </div>
+        <div style="max-width:100px">
+          <label>Batch</label>
+          <input id="batch" type="number" value="2" min="1" max="32">
+        </div>
+        <div style="max-width:140px">
+          <label>Punti/blocco</label>
+          <input id="punti-blocco" type="number" value="8192" min="1024" max="65536" step="1024">
         </div>
         <div class="stretta"><button id="btn-addestra"
           onclick="avviaAddestramento()">Addestra la rete</button></div>
         <div><span id="stato-addestra" class="suggerimento"></span></div>
       </div>
-      <div class="riga" style="margin-top:12px">
-        <div class="stretta">
-          <label style="color:var(--testo)"><input type="checkbox" id="usa-rete">
-            usa la rete nei prossimi run (fusione con l'ultimo checkpoint)</label>
-        </div>
-        <div><div class="suggerimento" style="margin:0">Su CPU la fusione su
-          nuvole grandi richiede decine di minuti: attivala quando i pesi
-          valgono l'attesa (o con una GPU).</div></div>
+    </div>
+
+    <div class="riga" style="margin-top:14px">
+      <div class="stretta">
+        <label style="color:var(--testo)"><input type="checkbox" id="usa-rete">
+          usa la rete nei prossimi run (fusione con l'ultimo checkpoint)</label>
       </div>
+      <div><div class="suggerimento" style="margin:0">Su CPU la fusione su
+        nuvole grandi richiede decine di minuti: attivala quando i pesi
+        valgono l'attesa (o con una GPU).</div></div>
     </div>
   </section>
 </main>
@@ -367,6 +418,7 @@ function classiEscluse() {
 }
 
 inizializzaClassi();
+popolaDatasetPubblici();
 
 // --- Prepara ----------------------------------------------------------------
 
@@ -380,6 +432,18 @@ async function sfoglia() {
     const d = await r.json();
     if (d.errore) { mostraErrore("Selettore file: " + d.errore); return; }
     if (d.percorso) $("percorso").value = d.percorso;
+  } catch (e) {
+    mostraErrore("Il server non risponde: riavvia mepseg-gui. (" + e.message + ")");
+  }
+}
+
+// selettore di CARTELLA (per il dataset pubblico da importare); scrive nell'input dato
+async function sfogliaCartella(idInput) {
+  try {
+    const r = await fetch("/api/sfoglia?cartella=1", {method: "POST"});
+    const d = await r.json();
+    if (d.errore) { mostraErrore("Selettore cartella: " + d.errore); return; }
+    if (d.percorso) $(idInput).value = d.percorso;
   } catch (e) {
     mostraErrore("Il server non risponde: riavvia mepseg-gui. (" + e.message + ")");
   }
@@ -706,9 +770,8 @@ async function caricaRisultato() {
   azzeraSelezione();
   aggiornaConferme();
   aggiornaStatoVlm();
-  // Fase 5: con un run in mano si puo' esportare e addestrare
-  $("addestra-vuota").style.display = "none";
-  $("addestra-contenuto").style.display = "block";
+  // Fase 5: con un run in mano si sblocca l'export delle etichette
+  $("btn-esporta").disabled = false;
   aggiornaDataset();
   $("vista3d").scrollIntoView({behavior: "smooth"});
 }
@@ -1110,6 +1173,58 @@ async function caricaDiff() {
 
 // --- 5 · Addestra (fine-tuning della rete) -----------------------------------
 
+// popola il menù dei dataset pubblici importabili (= mappature sul server)
+async function popolaDatasetPubblici() {
+  try {
+    const r = await fetch("/api/dataset_pubblici");
+    const d = await r.json();
+    const menu = $("pubblico-dataset");
+    if (!menu) return;
+    menu.innerHTML = "";
+    (d.dataset || []).forEach(nome => {
+      const opt = document.createElement("option");
+      opt.value = nome; opt.textContent = nome;
+      menu.appendChild(opt);
+    });
+    if (!menu.options.length) {
+      const opt = document.createElement("option");
+      opt.value = ""; opt.textContent = "(nessuna mappatura)";
+      menu.appendChild(opt);
+    }
+  } catch (e) { /* GUI resta usabile anche senza il menù */ }
+}
+
+async function importaPubblico() {
+  mostraErrore("");
+  const sorgente = $("pubblico-sorgente").value.trim().replace(/^["']+|["']+$/g, "");
+  if (!sorgente) { mostraErrore("Indica la cartella del dataset scaricato."); return; }
+  $("btn-importa").disabled = true;
+  $("stato-importa").textContent = "import in corso (i punti scorrono nel registro della sezione 2)...";
+  try {
+    const maxRaw = parseInt($("pubblico-max").value);
+    const avvio = await fetch("/api/importa_pubblico", {method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({
+        sorgente: sorgente,
+        dataset: $("pubblico-dataset").value,
+        cartella_dataset: $("cartella-dataset").value.trim(),
+        voxel: parseFloat($("pubblico-voxel").value) || 0.02,
+        max_punti: Number.isFinite(maxRaw) ? maxRaw : null,
+      })});
+    if (!avvio.ok) {
+      const d = await avvio.json();
+      throw new Error(d.errore || avvio.statusText);
+    }
+    const ok = await attendiJob();
+    $("stato-importa").textContent = ok ? "import completato: ora puoi addestrare (C)" : "";
+    await aggiornaDataset();
+  } catch (e) {
+    mostraErrore(e.message);
+    $("stato-importa").textContent = "";
+  }
+  $("btn-importa").disabled = false;
+}
+
 async function aggiornaDataset() {
   try {
     const parametro = encodeURIComponent($("cartella-dataset").value.trim());
@@ -1121,7 +1236,7 @@ async function aggiornaDataset() {
     const nuvole = Object.entries(d.nuvole || {});
     let testo;
     if (!nuvole.length) {
-      testo = "Dataset vuoto: esporta le etichette del run corrente per iniziare.";
+      testo = "Dataset vuoto: importa un dataset pubblico (A) o esporta le etichette del run corrente (B) per iniziare.";
     } else {
       const punti = nuvole.reduce((s, [, v]) => s + (v.punti || 0), 0);
       const conf = nuvole.reduce((s, [, v]) => s + (v.punti_confermati || 0), 0);
@@ -1180,6 +1295,8 @@ async function avviaAddestramento() {
       body: JSON.stringify({
         cartella_dataset: $("cartella-dataset").value.trim(),
         epoche: parseInt($("epoche").value) || 30,
+        batch: parseInt($("batch").value) || 2,
+        punti_blocco: parseInt($("punti-blocco").value) || 8192,
       })});
     if (!avvio.ok) {
       const d = await avvio.json();

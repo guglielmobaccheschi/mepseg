@@ -171,6 +171,15 @@ class RichiestaAllena(BaseModel):
     batch: int = 2
 
 
+class RichiestaImportaPubblico(BaseModel):
+    sorgente: str                       # cartella radice del dataset scaricato
+    dataset: str = "psnet5"             # nome della mappatura/lettore
+    cartella_dataset: str = ""          # dataset di training di destinazione
+    voxel: float = 0.02
+    val_area: str = ""                  # vuoto = l'ultima area
+    max_punti: int | None = None        # tetto per area (run rapidi)
+
+
 class RichiestaConferma(BaseModel):
     id_istanza: int
     azione: str                # conferma | correggi | elimina | annulla
@@ -210,24 +219,35 @@ def statico(nome: str):
 
 
 @app.post("/api/sfoglia")
-def sfoglia():
-    """Apre il selettore file nativo in un PROCESSO separato.
+def sfoglia(cartella: bool = False):
+    """Apre il selettore file (o cartella) nativo in un PROCESSO separato.
 
     tkinter dentro un thread del server e' fragile (crash intermittenti su
     Windows): un piccolo processo Python dedicato e' robusto e isolato.
+    Con ``cartella=True`` sceglie una CARTELLA (per il dataset pubblico da
+    importare) invece di un file.
     """
     import subprocess
     import sys
 
-    codice = (
-        "import tkinter as tk\n"
-        "from tkinter import filedialog\n"
-        "radice = tk.Tk(); radice.withdraw(); radice.attributes('-topmost', True)\n"
-        "print(filedialog.askopenfilename(\n"
-        "    title='Seleziona la nuvola di punti',\n"
-        "    filetypes=[('Nuvole di punti', '*.e57 *.las *.laz *.ply *.pcd *.xyz *.txt'),\n"
-        "               ('Tutti i file', '*.*')]))\n"
-    )
+    if cartella:
+        codice = (
+            "import tkinter as tk\n"
+            "from tkinter import filedialog\n"
+            "radice = tk.Tk(); radice.withdraw(); radice.attributes('-topmost', True)\n"
+            "print(filedialog.askdirectory(\n"
+            "    title='Seleziona la cartella del dataset pubblico'))\n"
+        )
+    else:
+        codice = (
+            "import tkinter as tk\n"
+            "from tkinter import filedialog\n"
+            "radice = tk.Tk(); radice.withdraw(); radice.attributes('-topmost', True)\n"
+            "print(filedialog.askopenfilename(\n"
+            "    title='Seleziona la nuvola di punti',\n"
+            "    filetypes=[('Nuvole di punti', '*.e57 *.las *.laz *.ply *.pcd *.xyz *.txt'),\n"
+            "               ('Tutti i file', '*.*')]))\n"
+        )
     try:
         esito = subprocess.run(
             [sys.executable, "-c", codice],
@@ -267,12 +287,14 @@ def _cartella_output(richiesta_percorso: str, cartella: str) -> Path:
 
 def _cartella_dataset(campo: str) -> Path | None:
     """Cartella del dataset cumulativo: campo esplicito della GUI, oppure
-    ``dataset_mep`` accanto alla nuvola dell'ultima segmentazione."""
+    ``dataset_mep`` accanto alla nuvola dell'ultima segmentazione, oppure
+    ``dataset_mep`` nella cartella di lavoro (permette import + training di
+    un dataset pubblico senza una segmentazione precedente)."""
     if campo.strip():
         return Path(campo.strip().strip('"').strip("'"))
     if ULTIMA_SEGMENTA is not None:
         return Path(ULTIMA_SEGMENTA.percorso).parent / "dataset_mep"
-    return None
+    return Path("dataset_mep")
 
 
 def _lavoro_anteprima(richiesta: RichiestaAnteprima) -> None:
@@ -1020,6 +1042,79 @@ def allena_api(richiesta: RichiestaAllena):
     STATO.azzera({"allena": str(dataset), "epoche": richiesta.epoche})
     threading.Thread(
         target=_lavoro_allena, args=(dataset, richiesta), daemon=True
+    ).start()
+    return {"avviato": True, "cartella": str(dataset)}
+
+
+@app.get("/api/dataset_pubblici")
+def dataset_pubblici_api():
+    """Dataset pubblici importabili = mappature disponibili in mepseg/dl/mappature.
+
+    Serve alla GUI per popolare il menù a tendina senza cablare i nomi."""
+    from ..dl.importa_pubblico import PERCORSO_MAPPATURE
+
+    nomi = sorted(p.stem for p in PERCORSO_MAPPATURE.glob("*.yaml"))
+    return {"dataset": nomi}
+
+
+def _lavoro_importa_pubblico(
+    dataset: Path, richiesta: RichiestaImportaPubblico
+) -> None:
+    try:
+        from ..dl.importa_pubblico import (
+            _IMPORTATORI,
+            carica_mappatura,
+        )
+
+        STATO.fase = f"import dataset pubblico '{richiesta.dataset}'"
+        mappa = carica_mappatura(richiesta.dataset)
+        importatore = _IMPORTATORI[richiesta.dataset]
+        stat = importatore(
+            richiesta.sorgente, dataset, mappa,
+            voxel=richiesta.voxel,
+            val_area=richiesta.val_area or None,
+            max_punti=richiesta.max_punti,
+        )
+        STATO.fase = (
+            f"import completato: {len(stat['train'])} aree train, "
+            f"{len(stat['val'])} val nel dataset"
+        )
+    except Exception as exc:  # noqa: BLE001
+        STATO.errore = str(exc)
+        log.info("Errore: %s", exc)
+    finally:
+        STATO.attivo = False
+        STATO.completato = True
+
+
+@app.post("/api/importa_pubblico")
+def importa_pubblico_api(richiesta: RichiestaImportaPubblico):
+    if STATO.attivo:
+        return JSONResponse({"errore": "elaborazione in corso"}, status_code=409)
+    from ..dl.importa_pubblico import PERCORSO_MAPPATURE
+
+    if not (PERCORSO_MAPPATURE / f"{richiesta.dataset}.yaml").exists():
+        return JSONResponse(
+            {"errore": f"dataset '{richiesta.dataset}' non supportato "
+             "(manca la mappatura)"}, status_code=400,
+        )
+    if not richiesta.sorgente.strip():
+        return JSONResponse(
+            {"errore": "indica la cartella del dataset scaricato"},
+            status_code=400,
+        )
+    sorgente = Path(richiesta.sorgente)
+    if not sorgente.is_dir():
+        return JSONResponse(
+            {"errore": f"cartella non trovata: {sorgente}"}, status_code=400,
+        )
+    dataset = _cartella_dataset(richiesta.cartella_dataset)
+    if dataset is None:
+        return JSONResponse({"errore": "cartella dataset non determinabile"},
+                            status_code=400)
+    STATO.azzera({"importa_pubblico": richiesta.dataset, "in": str(dataset)})
+    threading.Thread(
+        target=_lavoro_importa_pubblico, args=(dataset, richiesta), daemon=True,
     ).start()
     return {"avviato": True, "cartella": str(dataset)}
 

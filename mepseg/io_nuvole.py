@@ -219,3 +219,35 @@ def salva_las_classificata(
     las.classification = etichette.astype(np.uint8)
     las.write(str(percorso))
     return percorso
+
+
+def salva_las_per_gruppi(
+    percorso_base: str | Path, punti: np.ndarray, etichette: np.ndarray
+) -> dict[str, Path]:
+    """Salva, accanto al LAS completo, i LAS a piena risoluzione separati per
+    macro-gruppo (``strutturale`` / ``mep`` / ``scarto``) del flusso
+    scan-to-BIM.
+
+    ``percorso_base`` e' il percorso del LAS completo (``..._segmentata.las``);
+    ogni file di gruppo ne eredita il nome col suffisso del gruppo
+    (``..._segmentata_mep.las``). I punti conservano etichetta e colore per
+    classe: dentro il file MEP restano distinte condotte, luci, ecc.
+
+    Ritorna la mappa ``gruppo -> percorso`` dei soli file effettivamente
+    scritti (i gruppi senza punti vengono saltati)."""
+    from .classi import GRUPPI_MACRO
+
+    percorso_base = Path(percorso_base)
+    etichette = np.asarray(etichette)
+    scritti: dict[str, Path] = {}
+    for gruppo, classi in GRUPPI_MACRO.items():
+        codici = np.array([int(c) for c in classi])
+        maschera = np.isin(etichette, codici)
+        if not maschera.any():
+            continue
+        percorso = percorso_base.with_name(
+            f"{percorso_base.stem}_{gruppo}{percorso_base.suffix}"
+        )
+        salva_las_classificata(percorso, punti[maschera], etichette[maschera])
+        scritti[gruppo] = percorso
+    return scritti
