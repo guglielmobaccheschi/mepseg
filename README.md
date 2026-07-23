@@ -80,13 +80,18 @@ ciò che serve:
 mepseg --controlla
 ```
 
-### Interfaccia grafica
+### Interfaccia grafica — il modo consigliato di usare mepseg
+
+**mepseg è pensato per essere usato dalla sua interfaccia grafica**: tutto il
+flusso di lavoro (preparazione, elaborazione, verifica, conferma e
+addestramento) vive lì. Su Windows il modo normale di avviarlo è un
+**doppio click su `avvia_gui.bat`** nella cartella del progetto: fa partire il
+server locale e apre il browser sull'interfaccia. Non serve la riga di comando.
 
 ```bash
+# equivalente da terminale (Linux/macOS, o se preferisci la shell):
 mepseg-gui              # avvia il server locale e apre il browser
 ```
-
-Su Windows: **doppio click su `avvia_gui.bat`** nella cartella del progetto.
 
 > ⚠️ Non aprire `mepseg/gui/static/index.html` direttamente dal disco:
 > l'interfaccia ha bisogno del suo server locale (la pagina stessa, se
@@ -138,7 +143,11 @@ suggerimento resta disabilitato con una nota e tutto il resto della GUI
 funziona normalmente. Su CPU l'inferenza richiede da qualche secondo a
 un minuto per istanza (i pesi occupano 1.5-3+ GB su disco).
 
-## Uso rapido
+## Uso da riga di comando (avanzato / automazione)
+
+Il modo normale di lavorare è la **GUI** (vedi sopra: `avvia_gui.bat`). La riga
+di comando è lo stesso motore che la GUI richiama, ed è utile per automazione,
+script ed elaborazioni batch.
 
 ```bash
 # prova immediata su una scena sintetica inclusa
