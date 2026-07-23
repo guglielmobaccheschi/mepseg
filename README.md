@@ -267,8 +267,8 @@ geometrica e si migliora con i propri dati.
 
 - L'architettura della rete di segmentazione (modulo `dl`, implementazione
   propria in PyTorch) e' descritta in: Q. Hu, B. Yang, L. Xie, S. Rosa,
-  Y. Guo, Z. Wang, N. Trigoni, A. Markham, *RandLA-Net: Efficient Semantic
-  Segmentation of Large-Scale Point Clouds*, CVPR 2020.
+  Y. Guo, Z. Wang, N. Trigoni, A. Markham, *[RandLA-Net: Efficient Semantic
+  Segmentation of Large-Scale Point Clouds](https://github.com/QingyongHu/RandLA-Net#randla-net-efficient-semantic-segmentation-of-large-scale-point-clouds-cvpr-2020)*, CVPR 2020.
 - Elaborazione geometrica: [Open3D](https://www.open3d.org/).
 
 Licenza: [MIT](LICENSE).
