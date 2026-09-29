@@ -87,6 +87,10 @@ flusso di lavoro (preparazione, elaborazione, verifica, conferma e
 addestramento) vive lì. Su Windows il modo normale di avviarlo è un
 **doppio click su `avvia_gui.bat`** nella cartella del progetto: fa partire il
 server locale e apre il browser sull'interfaccia. Non serve la riga di comando.
+Al primo avvio lo script crea da solo l'ambiente `.venv` e installa le
+dipendenze (qualche minuto, serve internet): basta avere Python installato
+da [python.org](https://www.python.org/downloads/) con l'opzione
+"Add python.exe to PATH".
 
 ```bash
 # equivalente da terminale (Linux/macOS, o se preferisci la shell):

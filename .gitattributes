@@ -1,0 +1,2 @@
+# gli script batch di Windows devono avere terminatori CRLF
+*.bat text eol=crlf

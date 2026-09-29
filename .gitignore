@@ -6,6 +6,7 @@ build/
 dist/
 .venv/
 venv/
+.pytest_cache/
 
 # Output della pipeline (tutte le cartelle output_*, cache e pesi)
 output/
@@ -14,7 +15,7 @@ output_*/
 *.npy
 
 # Dataset pubblici scaricati (dati di terzi, decine di GB) e dataset di
-# training generato dall'adattatore: solo canale 0meptool, mai in git.
+# training generato dall'adattatore: restano in locale, mai in git.
 dataset_pubblici/
 dataset_mep/
 
@@ -30,6 +31,5 @@ dataset_mep/
 .idea/
 .vscode/
 
-# Materiale di lavoro personale (canale 0meptool): checklist, tracker,
-# note interne. Mai in git ne' propagato verso 1meptool.
+# Materiale di lavoro personale: checklist, tracker, note interne.
 _lavoro/
